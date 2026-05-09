@@ -115,6 +115,7 @@ export function useRealtimeVoice() {
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intentionalCloseRef = useRef(false);
   const connectingRef = useRef(false);
+  const sessionReadyRef = useRef(false);
 
   // Analytics session tracking
   const sessionIdRef = useRef<string | null>(null);
@@ -183,6 +184,7 @@ export function useRealtimeVoice() {
 
     switch (event.type) {
       case 'session.ready': {
+        sessionReadyRef.current = true;
         setPhase('listening');
         break;
       }
@@ -373,9 +375,13 @@ export function useRealtimeVoice() {
             .catch(() => {});
         }
 
-        // Wire up audio processor — downsample mic audio to 16kHz and send as PCM16
+        // Wait for server's session.ready before streaming audio — DashScope ASR setup
+        // is async on the server; sending audio.append before asrWs is ready triggers
+        // "Session not started" errors.
+        sessionReadyRef.current = false;
         processor.onaudioprocess = (e) => {
           if (ws.readyState !== WebSocket.OPEN) return;
+          if (!sessionReadyRef.current) return;
           const input = e.inputBuffer.getChannelData(0);
           const downsampled = downsample(input, ctx.sampleRate);
           const b64 = float32ToPcm16Base64(downsampled);
@@ -525,6 +531,7 @@ export function useRealtimeVoice() {
 
     cleanupAudio();
 
+    sessionReadyRef.current = false;
     setStatus({ phase: 'idle', transcript: '', responseText: '', error: null });
   }, [cleanupAudio]);
 
