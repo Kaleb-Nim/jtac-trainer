@@ -6,6 +6,8 @@ import Reticle from '@/components/Reticle';
 import ScenarioCard from '@/components/ScenarioCard';
 import TalkButton from '@/components/TalkButton';
 import DebugPanel from '@/components/DebugPanel';
+import EndRunButton from '@/components/EndRunButton';
+import DebriefPanel from '@/components/DebriefPanel';
 
 export default function Home() {
   // useRealtimeVoice() called EXACTLY ONCE in the page tree — slices passed to
@@ -27,6 +29,8 @@ export default function Home() {
         isConnected={isConnected}
       />
       <DebugPanel transcript={status.transcript} responseText={status.responseText} />
+      <EndRunButton />
+      <DebriefPanel />
     </main>
   );
 }
