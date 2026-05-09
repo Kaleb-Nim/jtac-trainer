@@ -75,9 +75,7 @@ export default function JTACController() {
           ping();
         }
       } else if (k === 'r') {
-        useStore.getState().setTransmittedGrid(null);
-        useStore.getState().setLasedRange(null);
-        useStore.getState().setImpactResult(null);
+        useStore.getState().endRun();
       }
     };
     window.addEventListener('keydown', onKey);

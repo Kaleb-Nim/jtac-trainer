@@ -207,6 +207,9 @@ export function useRealtimeVoice() {
             turnIndex: turnIndexRef.current++,
           });
         }
+        if (text) {
+          useStore.getState().appendTurn({ role: 'user', text, ts: Date.now() });
+        }
         break;
       }
 
@@ -242,6 +245,9 @@ export function useRealtimeVoice() {
             text: buffered,
             turnIndex: turnIndexRef.current++,
           });
+        }
+        if (!isImmediate && buffered) {
+          useStore.getState().appendTurn({ role: 'pilot', text: buffered, ts: Date.now() });
         }
 
         setPhase('listening');
