@@ -13,7 +13,7 @@ export default function Home() {
   // useRealtimeVoice() called EXACTLY ONCE in the page tree — slices passed to
   // child components as props. Calling the hook in two components would create
   // two parallel WebSocket sessions (Phase 1 race-fix invariant).
-  const { status, connect, disconnect, isConnected } = useRealtimeVoice();
+  const { status, connect, disconnect, startTransmit, stopTransmit, isConnected } = useRealtimeVoice();
 
   return (
     <main className="relative h-screen w-screen overflow-hidden bg-black font-mono text-zinc-100">
@@ -26,6 +26,8 @@ export default function Home() {
         status={status}
         connect={connect}
         disconnect={disconnect}
+        startTransmit={startTransmit}
+        stopTransmit={stopTransmit}
         isConnected={isConnected}
       />
       <DebugPanel transcript={status.transcript} responseText={status.responseText} />

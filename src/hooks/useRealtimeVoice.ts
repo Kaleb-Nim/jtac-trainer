@@ -3,7 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useStore } from '@/lib/store';
 
-export type RealtimePhase = 'idle' | 'connecting' | 'listening' | 'responding' | 'error';
+export type RealtimePhase =
+  | 'idle'
+  | 'connecting'
+  | 'listening'
+  | 'transmitting'
+  | 'processing'
+  | 'responding'
+  | 'error';
 
 export interface RealtimeStatus {
   phase: RealtimePhase;
@@ -17,6 +24,7 @@ const WS_SERVER_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:8080/ws'
 // Audio sample rates
 const MIC_SAMPLE_RATE = 16000;     // ASR requires 16kHz mono PCM
 const PLAYBACK_SAMPLE_RATE = 24000; // TTS returns 24kHz PCM
+const MAX_TRANSMIT_MS = 55_000;     // Manual ASR turns must stay under 60s.
 
 // ── Audio utility functions ────────────────────────────────────────────────
 
@@ -117,6 +125,9 @@ export function useRealtimeVoice() {
   const intentionalCloseRef = useRef(false);
   const connectingRef = useRef(false);
   const sessionReadyRef = useRef(false);
+  const isTransmittingRef = useRef(false);
+  const sentAudioThisTurnRef = useRef(false);
+  const transmitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Analytics session tracking
   const sessionIdRef = useRef<string | null>(null);
@@ -131,6 +142,15 @@ export function useRealtimeVoice() {
   const sendEvent = useCallback((event: object) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(event));
+    }
+  }, []);
+
+  const resetTransmitState = useCallback(() => {
+    isTransmittingRef.current = false;
+    sentAudioThisTurnRef.current = false;
+    if (transmitTimerRef.current) {
+      clearTimeout(transmitTimerRef.current);
+      transmitTimerRef.current = null;
     }
   }, []);
 
@@ -157,6 +177,8 @@ export function useRealtimeVoice() {
 
   // Clean up mic and audio resources (called on disconnect and before reconnect)
   const cleanupAudio = useCallback(() => {
+    resetTransmitState();
+
     processorRef.current?.disconnect();
     processorRef.current = null;
 
@@ -173,7 +195,7 @@ export function useRealtimeVoice() {
     playbackCtxRef.current = null;
 
     lastSourceRef.current = null;
-  }, []);
+  }, [resetTransmitState]);
 
   const handleMessage = useCallback((raw: string) => {
     let event: { type: string; [key: string]: unknown };
@@ -186,7 +208,10 @@ export function useRealtimeVoice() {
     switch (event.type) {
       case 'session.ready': {
         sessionReadyRef.current = true;
-        setPhase('listening');
+        setStatus(prev => {
+          if (prev.phase !== 'connecting' && prev.phase !== 'processing') return prev;
+          return { ...prev, phase: 'listening', error: null };
+        });
         break;
       }
 
@@ -198,7 +223,11 @@ export function useRealtimeVoice() {
 
       case 'transcript.final': {
         const text = (event.text as string | undefined) ?? '';
-        setStatus(prev => ({ ...prev, transcript: text }));
+        setStatus(prev => ({
+          ...prev,
+          phase: sessionReadyRef.current ? 'listening' : 'processing',
+          transcript: text,
+        }));
         if (sessionIdRef.current && text) {
           postAnalytics('/api/analytics/transcript', {
             sessionId: sessionIdRef.current,
@@ -250,7 +279,7 @@ export function useRealtimeVoice() {
           useStore.getState().appendTurn({ role: 'pilot', text: buffered, ts: Date.now() });
         }
 
-        setPhase('listening');
+        setPhase(sessionReadyRef.current ? 'listening' : 'processing');
 
         const ctx = playbackCtxRef.current;
         const gen = playGenRef.current;
@@ -353,7 +382,7 @@ export function useRealtimeVoice() {
       analyserRef.current = analyser;
 
       // ScriptProcessor to capture PCM and send to Bun WS server
-      const processor = ctx.createScriptProcessor(4096, 1, 1);
+      const processor = ctx.createScriptProcessor(1024, 1, 1);
       source.connect(processor);
       processor.connect(ctx.destination);
       processorRef.current = processor;
@@ -397,13 +426,16 @@ export function useRealtimeVoice() {
         // is async on the server; sending audio.append before asrWs is ready triggers
         // "Session not started" errors.
         sessionReadyRef.current = false;
+        resetTransmitState();
         processor.onaudioprocess = (e) => {
           if (ws.readyState !== WebSocket.OPEN) return;
           if (!sessionReadyRef.current) return;
+          if (!isTransmittingRef.current) return;
           const input = e.inputBuffer.getChannelData(0);
           const downsampled = downsample(input, ctx.sampleRate);
           const b64 = float32ToPcm16Base64(downsampled);
           ws.send(JSON.stringify({ type: 'audio.append', data: b64 }));
+          sentAudioThisTurnRef.current = true;
         };
       };
 
@@ -414,6 +446,7 @@ export function useRealtimeVoice() {
           // Exponential backoff reconnect
           const delay = Math.min(1000 * 2 ** retriesRef.current, 30000);
           console.log(`[ws] reconnecting in ${delay}ms (attempt ${retriesRef.current + 1}/5)`);
+          resetTransmitState();
 
           // Selectively clean up audio contexts and processors but preserve mic stream
           // so reconnect can reuse it without needing a new user gesture
@@ -470,7 +503,7 @@ export function useRealtimeVoice() {
       wsRef.current = null;
       connectingRef.current = false;
     }
-  }, [handleMessage, cleanupAudio]);
+  }, [handleMessage, cleanupAudio, resetTransmitState]);
 
   const connect = useCallback(async () => {
     if (connectingRef.current) return;
@@ -515,6 +548,51 @@ export function useRealtimeVoice() {
     connectingRef.current = false;
     await connectInternal(stream);
   }, [connectInternal, setPhase, cleanupAudio]);
+
+  const stopTransmit = useCallback(() => {
+    if (!isTransmittingRef.current) return;
+
+    isTransmittingRef.current = false;
+    if (transmitTimerRef.current) {
+      clearTimeout(transmitTimerRef.current);
+      transmitTimerRef.current = null;
+    }
+
+    const shouldCommit =
+      sentAudioThisTurnRef.current &&
+      sessionReadyRef.current &&
+      wsRef.current?.readyState === WebSocket.OPEN;
+
+    sentAudioThisTurnRef.current = false;
+
+    if (shouldCommit) {
+      sessionReadyRef.current = false;
+      sendEvent({ type: 'audio.end' });
+      setPhase('processing');
+    } else {
+      setPhase('listening');
+    }
+  }, [sendEvent, setPhase]);
+
+  const startTransmit = useCallback(() => {
+    if (isTransmittingRef.current) return;
+    if (status.phase !== 'listening') return;
+    if (!sessionReadyRef.current) return;
+    if (wsRef.current?.readyState !== WebSocket.OPEN) return;
+
+    isTransmittingRef.current = true;
+    sentAudioThisTurnRef.current = false;
+    setStatus(prev => ({
+      ...prev,
+      phase: 'transmitting',
+      transcript: '',
+      error: null,
+    }));
+
+    transmitTimerRef.current = setTimeout(() => {
+      stopTransmit();
+    }, MAX_TRANSMIT_MS);
+  }, [status.phase, stopTransmit]);
 
   const disconnect = useCallback(() => {
     // Mark as intentional close so auto-reconnect does not trigger
@@ -590,5 +668,5 @@ export function useRealtimeVoice() {
     };
   }, []);
 
-  return { status, analyserRef, connect, disconnect, isConnected };
+  return { status, analyserRef, connect, disconnect, startTransmit, stopTransmit, isConnected };
 }

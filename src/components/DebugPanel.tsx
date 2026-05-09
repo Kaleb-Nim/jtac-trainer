@@ -34,7 +34,7 @@ export default function DebugPanel({ transcript, responseText }: DebugPanelProps
           </section>
           <section className="flex flex-col gap-1">
             <label className="text-[10px] uppercase tracking-wider text-zinc-500">
-              Response (Hawg 21):
+              Response (hog1):
             </label>
             <pre
               data-testid="response"
