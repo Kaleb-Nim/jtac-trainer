@@ -9,7 +9,7 @@ Six phases time-boxed inside a 6-hour hackathon sprint. Phase 1 stands up the re
 - [x] **Phase 1: Voice scaffold** — Reuse nim-kaleb ws-server + voice hook; confirm round-trip
 - [x] **Phase 2: 3D scene** — react-three-fiber scene with terrain, target, friendlies, reticle, live grid
 - [x] **Phase 3: JTAC pilot persona + grid bridge** — Hawg 21 prompt + `<grid>` tag → bomb impact at transmitted grid
-- [ ] **Phase 4: Debrief loop** — Capture transcript+outcome, `/api/debrief` route, prose verdict UI
+- [x] **Phase 4: Debrief loop** — Capture transcript+outcome, `/api/debrief` route, prose verdict UI
 - [ ] **Phase 5: Demo polish + Vercel deploy** — Mil-spec aesthetic, latency tighten, ship to Vercel
 - [ ] **Phase 6: Buffer + submission** — Backup recording, README, luma form
 
@@ -69,7 +69,7 @@ Plans:
 **Plans**: 1 plan (60 min budget)
 
 Plans:
-- [ ] 04-01: Outcome capture + /api/debrief route + DebriefPanel
+- [x] 04-01: Outcome capture + /api/debrief route + DebriefPanel
 
 ### Phase 5: Demo polish + Vercel deploy
 **Goal**: A judge clicking the live Vercel URL completes the full loop in <2 min on Chrome desktop with no console errors and a passable mil-spec look.
@@ -107,7 +107,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 |-------|----------------|--------|-----------|
 | 1. Voice scaffold | 1/1 | Complete | 2026-05-09 |
 | 2. 3D scene | 1/1 | Complete | 2026-05-09 |
-| 3. JTAC pilot persona + grid bridge | 0/1 | Not started | - |
-| 4. Debrief loop | 0/1 | Not started | - |
+| 3. JTAC pilot persona + grid bridge | 1/1 | Complete | 2026-05-09 |
+| 4. Debrief loop | 1/1 | Complete | 2026-05-09 |
 | 5. Demo polish + Vercel deploy | 0/1 | Not started | - |
 | 6. Buffer + submission | 0/1 | Not started | - |

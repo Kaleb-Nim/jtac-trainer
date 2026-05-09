@@ -31,12 +31,12 @@
 
 ### Debrief
 
-- [ ] **BRIEF-01**: Transcript captured turn-by-turn during run
-- [ ] **BRIEF-02**: Outcome captured: distance from impact to target, distance from impact to friendlies
-- [ ] **BRIEF-03**: "End run" button POSTs transcript + outcome to `/api/debrief`
-- [ ] **BRIEF-04**: `/api/debrief` calls DashScope LLM (non-streaming, no TTS), returns `{verdict, critique}`
-- [ ] **BRIEF-05**: `DebriefPanel` renders prose critique + verdict badge (solid/needs_work/unsafe)
-- [ ] **BRIEF-06**: Bad-grid run produces "needs_work" or "unsafe" verdict that references the miss
+- [x] **BRIEF-01**: Transcript captured turn-by-turn during run
+- [x] **BRIEF-02**: Outcome captured: distance from impact to target, distance from impact to friendlies
+- [x] **BRIEF-03**: "End run" button POSTs transcript + outcome to `/api/debrief`
+- [x] **BRIEF-04**: `/api/debrief` calls DashScope LLM (non-streaming, no TTS), returns `{verdict, critique}`
+- [x] **BRIEF-05**: `DebriefPanel` renders prose critique + verdict badge (solid/needs_work/unsafe)
+- [x] **BRIEF-06**: Bad-grid run produces "needs_work" or "unsafe" verdict that references the miss
 
 ### Polish + Deploy
 
@@ -88,12 +88,12 @@
 | PILOT-04 | Phase 3 | Complete |
 | PILOT-05 | Phase 3 | Complete |
 | PILOT-06 | Phase 3 | Complete |
-| BRIEF-01 | Phase 4 | Pending |
-| BRIEF-02 | Phase 4 | Pending |
-| BRIEF-03 | Phase 4 | Pending |
-| BRIEF-04 | Phase 4 | Pending |
-| BRIEF-05 | Phase 4 | Pending |
-| BRIEF-06 | Phase 4 | Pending |
+| BRIEF-01 | Phase 4 | Complete |
+| BRIEF-02 | Phase 4 | Complete |
+| BRIEF-03 | Phase 4 | Complete |
+| BRIEF-04 | Phase 4 | Complete |
+| BRIEF-05 | Phase 4 | Complete |
+| BRIEF-06 | Phase 4 | Complete |
 | POLISH-01 | Phase 5 | Pending |
 | POLISH-02 | Phase 5 | Pending |
 | POLISH-03 | Phase 5 | Pending |

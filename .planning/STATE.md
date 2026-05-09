@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed Phase 2 (02-01-PLAN.md) — scene + reticle + HUD all green
-last_updated: "2026-05-09T05:00:54.460Z"
-last_activity: 2026-05-09
+stopped_at: Completed Phase 04 (04-01-PLAN.md) — debrief loop closed; 4/4 smokes green
+last_updated: "2026-05-09T05:44:22Z"
+last_activity: 2026-05-09 -- Phase 04 plan 01 completed
 progress:
   total_phases: 6
-  completed_phases: 3
-  total_plans: 4
-  completed_plans: 4
-  percent: 100
+  completed_phases: 4
+  total_plans: 6
+  completed_plans: 5
+  percent: 83
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-09)
 
 **Core value:** A wrong voice transmission produces a visible, consequential miss on screen.
-**Current focus:** Phase 03 — jtac-pilot-persona-grid-bridge
+**Current focus:** Phase 04 — debrief-loop
 
 ## Current Position
 
-Phase: 03 (jtac-pilot-persona-grid-bridge) — EXECUTING
-Plan: 2 of 2
-Status: Ready to execute
-Last activity: 2026-05-09
+Phase: 05 (demo-polish + Vercel deploy) — NEXT
+Plan: 1 of 1 (Phase 04 complete)
+Status: Phase 04 complete; ready for Phase 05
+Last activity: 2026-05-09 -- Phase 04 plan 01 completed (4 waves, 8 tasks, 8 commits)
 
-Progress: [██████████] 100%
+Progress: [████████░░] 83%
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Progress: [██████████] 100%
 - Trend: —
 
 | Phase 03 P01 | 9 | 6 tasks | 14 files |
+| Phase 04 P01 | 6m26s | 8 tasks | 11 files (5 created, 6 modified) |
 
 ## Accumulated Context
 
@@ -67,6 +68,9 @@ Recent decisions affecting current work:
 - [Phase 03]: Phase 3 absorbs SCENE-02/SCENE-05 follow-up nudges per SCENARIO insertion — RNG HUD line, lase visual feedback, friendlies relocation to (100,2,320), camera lookAt nudge, verbatim 9-LINE BRIEF
 - [Phase 03]: ws-server <grid>NNNNNN</grid> tag extraction lives entirely inside startResponse — Per-turn pendingText buffer + indexOf('<') held-back tail; handles split-chunk partials safely; flushClean helper fans tag-stripped text to TTS + response.text.delta + history together
 - [Phase 03]: FRIENDLIES_WORLD reconciled to z=320 per SCENARIO override (beats plan body z=300) — Bomb-smoke distanceToFriendlies threshold widened to <25 to match resulting 19.7 m geometric reality; still well inside 75 m unsafe-verdict threshold
+- [Phase 04]: Verdict math runs server-side in /api/debrief BEFORE the LLM call (anti-hallucination); LLM only writes prose — prevents badge from ever contradicting critique
+- [Phase 04]: R-key reset uses new useStore.endRun() atomic action; clears transcript+debrief alongside the three Phase-3 fields (Pitfall 3 guard for back-to-back Take A → Take B)
+- [Phase 04]: debrief-smoke uses page.route() interception → offline-stable (no DashScope dependency at smoke time); live qwen-plus path verified separately via Wave 2 curl gate
 
 ### Pending Todos
 
@@ -83,14 +87,8 @@ None yet.
 |----------|------|--------|-------------|
 | *(none)* | | | |
 
-## Quick Tasks Completed
-
-| ID | Task | Completed |
-|----|------|-----------|
-| 260509-tts-persona-voice | Switch Alibaba realtime TTS to Qwen3 persona voice (default Ethan) | 2026-05-09 |
-
 ## Session Continuity
 
-Last session: 2026-05-09T04:59:29.667Z
-Stopped at: Completed Phase 2 (02-01-PLAN.md) — scene + reticle + HUD all green
+Last session: 2026-05-09T05:44:22Z
+Stopped at: Completed Phase 04 (04-01-PLAN.md) — debrief loop closed; voice/scene/bomb/debrief smokes all green; ready for Phase 05 polish + deploy
 Resume file: None
