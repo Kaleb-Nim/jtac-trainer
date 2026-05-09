@@ -111,3 +111,17 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 4. Debrief loop | 1/1 | Complete | 2026-05-09 |
 | 5. Demo polish + Vercel deploy | 0/1 | Not started | - |
 | 6. Buffer + submission | 0/1 | Not started | - |
+
+### Phase 7: End-of-training evaluation + phraseology + scored explanation
+**Goal**: When the JTAC clicks End Run, the panel shows an overall 0–100 score with sub-scores for Phraseology, Grid Accuracy, and Safety, plus Did Well / Needs Work bullet lists — replacing Phase 4's prose critique.
+**Depends on**: Phase 4
+**Requirements**: (extends BRIEF-01..06; no new requirement IDs added)
+**Success Criteria** (what must be TRUE):
+  1. New `/api/evaluate` route returns structured JSON `{scores:{overall,phraseology,gridAccuracy,safety}, didWell, needsWork}` from DashScope qwen-plus non-streaming
+  2. `EndRunButton` calls `/api/evaluate` (no runtime caller of `/api/debrief`)
+  3. `DebriefPanel` renders overall + 3 sub-scores + Did Well / Needs Work bullets; verdict badge and prose critique removed from UI
+  4. Wrong-grid-near-friendlies run produces a low Safety sub-score with Needs Work bullets referencing the miss
+**Plans**: 1 plan
+
+Plans:
+- [ ] 07-01: Evaluation type + /api/evaluate route + EndRunButton rewire + DebriefPanel rewrite
