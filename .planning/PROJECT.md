@@ -1,67 +1,67 @@
-# JTAC CAS 9-Line Voice Trainer
+# jtac-trainer
 
 ## What This Is
 
-A voice-first roleplay trainer for Joint Terminal Attack Controllers (JTACs) practicing CAS (Close Air Support) 9-line briefs. The user surveys terrain in a 3D first-person view, transmits a 9-line brief aloud to "Hawg 21" (an A-10 pilot agent), and watches the bomb impact at whatever grid the transmission communicated. A wrong grid produces a visible miss — or worse, a friendly-fire incident.
-
-Built for the **AIE Open Canvas Hackathon** (luma.com/aie-hack) as a 6-hour sprint. Recreates Medkit's winning formula in the air-traffic / CAS domain: voice-first, role-immersive, structured-debrief, demo-able loop in <2 minutes.
+A voice-first JTAC CAS 9-line trainer for the AIE Open Canvas Hackathon. The user surveys terrain in a 3D first-person view, speaks a 9-line CAS brief to "Hawg 21" (an A-10 pilot agent), and the bomb impacts wherever the transmission said it should — wrong grid produces a visible miss. End-of-run produces an instructor-style debrief.
 
 ## Core Value
 
-A CAS 9-line normally takes weeks of classroom + simulator time to drill. This collapses the loop to "speak it → see the bomb land → get coached" in 90 seconds, with visceral consequence (visible miss / friendly fire) replacing abstract scoring.
+A wrong voice transmission produces a visible, consequential miss on screen — voice has stakes. If everything else fails, that loop must work.
 
-## The Demo Loop (<2 min)
+## Requirements
 
-1. Open URL → 3D FPS scene, target visible, reticle shows live "MGRS" grid, scenario card in corner
-2. Hold-to-talk → user transmits 9-line aloud as JTAC
-3. AI pilot reads back lines 4/6/8, asks one clarification, calls "in hot"
-4. Bomb impacts at the grid the pilot's transcript contained
-5. "End run" → instructor-style prose debrief + verdict badge
+### Validated
 
-## Architecture
+(None yet — ship to validate)
 
-```
-Browser (Vercel)              Alibaba Cloud ECS              DashScope APIs
-┌─────────────────────┐      ┌────────────────────┐         ┌─────────────┐
-│ Next.js 16 + R3F    │◄wss──│ Bun WS Server      │◄──ws───►│ ASR (STT)   │
-│ 3D scene + voice    │      │ Session Manager    │◄──http─►│ LLM (qwen+) │
-│ HUD reticle, bomb   │      │ Pipeline + grid tag│◄──ws───►│ TTS         │
-└─────────────────────┘      │ extraction         │         └─────────────┘
-                             └────────────────────┘
-```
+### Active
 
-The 3-WebSocket pipeline is reused verbatim from `nim-kaleb`. Net-new: 3D scene, JTAC pilot persona, `<grid>` tag bridge from voice transcript to bomb impact, vibes-based debrief endpoint.
+- [ ] Voice round-trips through reused 3-WebSocket DashScope pipeline (ASR → LLM → TTS)
+- [ ] 3D first-person scene renders terrain, target, friendlies, with reticle showing live faked MGRS grid
+- [ ] AI pilot persona ("Hawg 21") reads back lines 4/6/8 in clipped comms register
+- [ ] LLM emits hidden `<grid>NNNNNN</grid>` tag; ws-server extracts, frontend triggers bomb impact at that grid
+- [ ] Bomb impact is visible (falling sphere → ring + smoke); correct grid hits target, wrong grid misses
+- [ ] End-run debrief calls `/api/debrief`, returns instructor critique + verdict (solid/needs_work/unsafe)
+- [ ] Deployed to Vercel pointing at `wss://ws.kalebnim.dev/ws`; full demo loop completes in <2 min on a fresh URL open
+
+### Out of Scope
+
+- Real MGRS math — fake 6-digit grid from world coords is enough for the demo
+- Per-line 9-line JSON parsing — only line 6 grid is structured; rest is vibes
+- Terrain heightmap, multiple scenarios, scenario picker — single hardcoded scenario only
+- Auth, persistence, user accounts — judges open URL and play
+- Player movement — fixed observation-post pose, mouse-look only
+- Safari support — Chrome desktop only (mic permission flakiness)
+
+## Context
+
+- 6-hour hackathon sprint (AIE Open Canvas, luma.com/aie-hack). Time is the dominant constraint.
+- Reuses working 3-WebSocket voice pipeline from sibling repo `nim-kaleb` (ws-server, useRealtimeVoice hook, audio utils) so 6h goes to scene + persona + grid bridge.
+- Medkit's winning hackathon pattern: voice-first, role-immersive, structured debrief, demo-able loop in <2 min — we are recreating that shape for JTAC.
+- Existing scaffolded repo: Next.js 16 (App Router) + Tailwind v4 + react-three-fiber (TBD), `ws-server/` directory present, `prompts/system-prompt.md` stub present.
+- Original detailed plan preserved at `.planning/intel/original-plan.md`.
 
 ## Constraints
 
-- **Time**: 6 hours total, including deploy + submission
-- **Provider**: Alibaba DashScope (reuses existing API key + ws-server infra at ws.kalebnim.dev)
-- **Runtime**: Bun (not npm/node)
-- **Demo target**: Vercel-deployed URL, ws-server on existing ECS
-- **Browser**: Chrome desktop (Safari mic permissions are flaky)
+- **Timeline**: 6-hour total budget, no buffer beyond Phase 6's 45 min
+- **Tech stack**: Next.js 16 App Router, Bun (no npm/Node), react-three-fiber, Tailwind v4, react 19
+- **Backend**: Bun WebSocket server reused as-is from nim-kaleb; only allowed edit is regex-extracting `<grid>` tag from LLM stream
+- **Browser**: Chrome desktop only (Safari mic permissions unreliable for demo)
+- **Deploy**: Vercel frontend → existing ECS ws-server at `wss://ws.kalebnim.dev/ws`
+- **Voice provider**: Alibaba DashScope (ASR/LLM/TTS) — already wired, do not swap
+- **Next.js**: Has breaking changes from training data; consult `node_modules/next/dist/docs/` per project AGENTS.md
 
 ## Key Decisions
 
-| Decision | Rationale |
-|---|---|
-| User = JTAC, AI = pilot | User practices the *transmitting* role — the part that needs drilling |
-| Vibes-based debrief, no per-line JSON | 6h sprint; bomb-impact outcome is the objective signal, prose critique reads like an instructor |
-| Single fixed scenario | Demo reliability > variety; eliminates LLM scenario-gen failure surface |
-| Keep DashScope, swap voice ID | ws-server already working end-to-end; rewriting TTS layer = ~1.5h risk |
-| 3D over 2D map | The visceral hook — bombs landing where you *said* — needs spatial first-person framing |
-| Faked MGRS via raycast | Real MGRS math eats 1h+ for zero demo lift |
-| `<grid>` tag in LLM stream | Single source of truth (transcript), zero extra API calls, ~30 min to wire |
-| New repo (not nim-kaleb branch) | Cleaner submission — judges don't see Kaleb's portfolio code |
-
-## Current Milestone: v0.1 Hackathon Submission
-
-**Goal**: Ship a working Vercel-deployed JTAC trainer in 6 hours that satisfies the <2-min demo loop end-to-end.
-
-**Phases**: 6 phases, each time-boxed 45–90 min. See `ROADMAP.md`.
-
-## Evolution
-
-This document evolves only at milestone boundaries. After the hackathon submission, post-event learnings go into `STATE.md`.
+| Decision | Rationale | Outcome |
+|----------|-----------|---------|
+| Roles: User=JTAC, AI=pilot "Hawg 21" | Pilot reads back grid → natural place to emit structured tag | — Pending |
+| Vibes-based prose debrief (no per-line JSON) | Per-line parsing eats sprint budget for marginal demo lift | — Pending |
+| Single hardcoded scenario (armor + friendlies S + no-strike E) | Scenario picker is scope creep | — Pending |
+| Faked MGRS via camera-raycast → 6-digit grid | Real MGRS math is hours; fake grid achieves identical demo signal | — Pending |
+| Grid bridge via `<grid>NNNNNN</grid>` tag in LLM stream | Single regex in ws-server; preserves prose-everywhere-else model | — Pending |
+| Reuse nim-kaleb ws-server verbatim, one edit only | Avoids re-debugging known-working voice pipeline | — Pending |
+| Deploy frontend on Vercel, ws-server stays on ECS | Existing wss endpoint already trusted | — Pending |
 
 ---
-*Last updated: 2026-05-09 at project init*
+*Last updated: 2026-05-09 after ingesting .planning/intel/original-plan.md*

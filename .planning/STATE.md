@@ -1,43 +1,65 @@
-# Project State: JTAC CAS 9-Line Voice Trainer
+# Project State
 
-## Current Status
+## Project Reference
 
-**Milestone**: v0.1 Hackathon Submission
-**Active Phase**: Phase 1 — Voice Scaffold (partial)
-**Sprint clock**: 6h, started 2026-05-09
+See: .planning/PROJECT.md (updated 2026-05-09)
 
-## Last Action
+**Core value:** A wrong voice transmission produces a visible, consequential miss on screen.
+**Current focus:** Phase 1 — Voice scaffold
 
-Initial scaffold commit `05d3fe6`:
-- Next.js 16 + Tailwind v4 (note: scaffolder forced `src/` layout — `app/` paths in plan are now `src/app/`)
-- ws-server/ copied verbatim from nim-kaleb (DashScope ASR/LLM/TTS)
-- src/hooks/useRealtimeVoice.ts copied
-- Skeleton dirs: src/scene/, src/components/, src/lib/, prompts/
-- Stub prompts/system-prompt.md, .env.example, README
+## Current Position
 
-## Next Action
+Phase: 1 of 6 (Voice scaffold)
+Plan: 0 of 1 in current phase
+Status: Ready to plan
+Last activity: 2026-05-09 — Ingested original-plan.md into PROJECT/REQUIREMENTS/ROADMAP
 
-Phase 1 remaining tasks:
-1. `bun install` in repo root and in `ws-server/`
-2. Set DashScope env vars (DASHSCOPE_API_KEY, DASHSCOPE_VOICE_ID)
-3. Boot ws-server: `bun ws-server/src/index.ts`
-4. Wire bare talk button on `src/app/page.tsx`
-5. Confirm voice round-trip
+Progress: [░░░░░░░░░░] 0%
 
-Then Phase 2 (3D scene).
+## Performance Metrics
 
-## Open Risks
+**Velocity:**
+- Total plans completed: 0
+- Average duration: —
+- Total execution time: 0 hours
 
-- DashScope outage during demo → mitigation: backup screen recording (Phase 6)
-- LLM `<grid>` tag unreliability → mitigation: few-shot examples + post-call extraction fallback (Phase 3 tripwire)
-- 3D scene overruns 90 min → mitigation: 2D top-down map fallback (Phase 2 tripwire)
-- Vercel WSS → ECS CORS/cert issues → mitigation: run frontend locally on stage (Phase 5 tripwire)
-- Safari mic permissions → Chrome-recommended note in README + on landing
+**By Phase:**
 
-## Notes
+| Phase | Plans | Total | Avg/Plan |
+|-------|-------|-------|----------|
+| - | - | - | - |
 
-- nim-kaleb `AGENTS.md` got copied via `create-next-app` template — it warns "This is NOT the Next.js you know, read node_modules/next/dist/docs/ before writing code". Consult when touching routing/server-component patterns.
-- Plan source of truth: `.planning/PLAN.md` (also at `~/.claude/plans/entering-the-aie-open-enumerated-bentley.md`).
+**Recent Trend:**
+- Last 5 plans: —
+- Trend: —
 
----
-*Last updated: 2026-05-09 after starter commit*
+## Accumulated Context
+
+### Decisions
+
+Decisions are logged in PROJECT.md Key Decisions table.
+Recent decisions affecting current work:
+
+- Project setup: Hackathon sprint — bypass full GSD ceremony, ingest existing PLAN.md directly
+- Phase 1: Reuse nim-kaleb ws-server + voice hook verbatim (one edit allowed in Phase 3)
+
+### Pending Todos
+
+None yet.
+
+### Blockers/Concerns
+
+- 6h hard budget; each phase has time-box and gate. If Phase 2 not on screen at 60 min → fall back to 2D map.
+- Source files in sibling repo `/Users/kalebnim/Documents/GitHub/nim-kaleb/` must be readable when Phase 1 runs.
+
+## Deferred Items
+
+| Category | Item | Status | Deferred At |
+|----------|------|--------|-------------|
+| *(none)* | | | |
+
+## Session Continuity
+
+Last session: 2026-05-09
+Stopped at: Ingested original-plan.md → wrote PROJECT/REQUIREMENTS/ROADMAP/STATE
+Resume file: None — run `/gsd-plan-phase 1` next

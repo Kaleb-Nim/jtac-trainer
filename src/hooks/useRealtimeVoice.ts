@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { TerminalState, TerminalStateMetadata } from '@/app/hooks/useTerminalState';
 
 export type RealtimePhase = 'idle' | 'connecting' | 'listening' | 'responding' | 'error';
 
@@ -12,11 +11,7 @@ export interface RealtimeStatus {
   error: string | null;
 }
 
-interface UseRealtimeVoiceOptions {
-  transitionTo: (state: TerminalState, meta?: TerminalStateMetadata) => void;
-}
-
-const WS_SERVER_URL = process.env.NEXT_PUBLIC_WS_SERVER_URL ?? 'ws://localhost:8080';
+const WS_SERVER_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:8080/ws';
 
 // Audio sample rates
 const MIC_SAMPLE_RATE = 16000;     // ASR requires 16kHz mono PCM
@@ -95,7 +90,7 @@ function getUserMediaErrorMessage(err: unknown): string {
   return `Microphone error: ${err instanceof Error ? err.message : String(err)}`;
 }
 
-export function useRealtimeVoice({ transitionTo }: UseRealtimeVoiceOptions) {
+export function useRealtimeVoice() {
   const [status, setStatus] = useState<RealtimeStatus>({
     phase: 'idle',
     transcript: '',
@@ -189,7 +184,6 @@ export function useRealtimeVoice({ transitionTo }: UseRealtimeVoiceOptions) {
     switch (event.type) {
       case 'session.ready': {
         setPhase('listening');
-        transitionTo('VOICE_ACTIVE');
         break;
       }
 
@@ -308,7 +302,7 @@ export function useRealtimeVoice({ transitionTo }: UseRealtimeVoiceOptions) {
         break;
       }
     }
-  }, [setPhase, scheduleAudioChunk, transitionTo]);
+  }, [setPhase, scheduleAudioChunk]);
 
   // Internal connect logic — accepts an already-acquired MediaStream to set up audio and WebSocket.
   // getUserMedia is NOT called here; it must be called in connect() before any setState to stay
@@ -345,7 +339,7 @@ export function useRealtimeVoice({ transitionTo }: UseRealtimeVoiceOptions) {
       processorRef.current = processor;
 
       // 4. Connect to Bun WS server — no subprotocol headers needed
-      const ws = new WebSocket(WS_SERVER_URL + '/ws');
+      const ws = new WebSocket(WS_SERVER_URL);
       wsRef.current = ws;
 
       ws.onmessage = (e) => handleMessage(e.data);
@@ -426,7 +420,6 @@ export function useRealtimeVoice({ transitionTo }: UseRealtimeVoiceOptions) {
                 phase: 'error',
                 error: 'Connection lost. Tap Connect to reconnect.',
               }));
-              transitionTo('VOICE_IDLE');
             }
           }, delay);
         } else if (!intentionalCloseRef.current) {
@@ -437,7 +430,6 @@ export function useRealtimeVoice({ transitionTo }: UseRealtimeVoiceOptions) {
             phase: 'error',
             error: 'Connection lost. Max reconnect attempts reached.',
           }));
-          transitionTo('VOICE_IDLE');
         } else {
           // Intentional close
           cleanupAudio();
@@ -445,7 +437,6 @@ export function useRealtimeVoice({ transitionTo }: UseRealtimeVoiceOptions) {
             ...prev,
             phase: prev.phase === 'error' ? 'error' : 'idle',
           }));
-          transitionTo('VOICE_IDLE');
         }
       };
     } catch (err) {
@@ -455,7 +446,7 @@ export function useRealtimeVoice({ transitionTo }: UseRealtimeVoiceOptions) {
       wsRef.current = null;
       connectingRef.current = false;
     }
-  }, [handleMessage, cleanupAudio, transitionTo]);
+  }, [handleMessage, cleanupAudio]);
 
   const connect = useCallback(async () => {
     if (connectingRef.current) return;
@@ -535,8 +526,7 @@ export function useRealtimeVoice({ transitionTo }: UseRealtimeVoiceOptions) {
     cleanupAudio();
 
     setStatus({ phase: 'idle', transcript: '', responseText: '', error: null });
-    transitionTo('VOICE_IDLE');
-  }, [cleanupAudio, transitionTo]);
+  }, [cleanupAudio]);
 
   const isConnected = status.phase !== 'idle' && status.phase !== 'error' && status.phase !== 'connecting';
 

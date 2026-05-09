@@ -1,143 +1,113 @@
-# Roadmap: JTAC CAS 9-Line Voice Trainer
+# Roadmap: jtac-trainer
 
-## Milestones
+## Overview
 
-- 🚧 **v0.1 Hackathon Submission** — Phases 1-6 (in progress, 6h sprint, 2026-05-09)
+Six phases time-boxed inside a 6-hour hackathon sprint. Phase 1 stands up the reused voice pipeline, Phase 2 builds the 3D scene, Phase 3 wires the JTAC pilot persona to the bomb-impact bridge (the punchline), Phase 4 closes the debrief loop, Phase 5 polishes and deploys to Vercel, Phase 6 buffers and submits. Each phase has an explicit gate; the plan assumes overruns and trips fallbacks early (e.g., 2D map if 3D scene runs long).
 
 ## Phases
 
-### Phase 1: Voice Scaffold (45 min) — ✅ partial (commit 05d3fe6)
+- [ ] **Phase 1: Voice scaffold** — Reuse nim-kaleb ws-server + voice hook; confirm round-trip
+- [ ] **Phase 2: 3D scene** — react-three-fiber scene with terrain, target, friendlies, reticle, live grid
+- [ ] **Phase 3: JTAC pilot persona + grid bridge** — Hawg 21 prompt + `<grid>` tag → bomb impact at transmitted grid
+- [ ] **Phase 4: Debrief loop** — Capture transcript+outcome, `/api/debrief` route, prose verdict UI
+- [ ] **Phase 5: Demo polish + Vercel deploy** — Mil-spec aesthetic, latency tighten, ship to Vercel
+- [ ] **Phase 6: Buffer + submission** — Backup recording, README, luma form
 
-**Goal**: Frontend can speak to the AI pilot stub and hear a reply end-to-end via the ws-server.
+## Phase Details
 
+### Phase 1: Voice scaffold
+**Goal**: User can press talk in the scaffolded Next.js app and hear an AI voice reply via the reused ws-server pipeline.
 **Depends on**: Nothing (first phase)
+**Requirements**: VOICE-01, VOICE-02, VOICE-03, VOICE-04
+**Success Criteria** (what must be TRUE):
+  1. ws-server boots locally with DashScope creds, accepts WebSocket connections
+  2. Frontend talk button captures mic audio, streams to ws-server, displays transcript
+  3. ws-server LLM reply is spoken back through TTS audio in the browser
+  4. Round-trip works against either local ws-server or `wss://ws.kalebnim.dev/ws`
+**Plans**: 1 plan (45 min budget)
 
-**Requirements**: VOICE-01, VOICE-02
+Plans:
+- [ ] 01-01: Wire reused ws-server + useRealtimeVoice into bare talk button page
 
-**Tasks**:
-- [x] Scaffold `jtac-trainer/` Next.js 16 app with bun
-- [x] Copy `ws-server/` from nim-kaleb verbatim
-- [x] Copy `useRealtimeVoice.ts` + audio utils into `src/hooks/`
-- [x] Stub `prompts/system-prompt.md` with placeholder pilot
-- [ ] Wire bare page with talk button
-- [ ] Boot ws-server locally (DASHSCOPE_API_KEY + DASHSCOPE_VOICE_ID)
-- [ ] Confirm voice round-trips (speak "test" → hear reply)
-
-**Gate**: Voice round-trip works; transcript events fire.
-
----
-
-### Phase 2: 3D Scene (90 min)
-
-**Goal**: First-person 3D scene with terrain, target, friendlies, mouse-look, and a HUD reticle showing live grid.
-
+### Phase 2: 3D scene
+**Goal**: User opens the page and sees a fullscreen 3D scene with terrain, target, friendlies, and a HUD reticle that shows a live changing 6-digit MGRS grid as they mouse-look.
 **Depends on**: Phase 1
+**Requirements**: SCENE-01, SCENE-02, SCENE-03, SCENE-04, SCENE-05
+**Success Criteria** (what must be TRUE):
+  1. Mouse-look rotates camera; target GLB and friendlies billboard are visible
+  2. Reticle HUD overlay shows crosshair plus live 6-digit grid string
+  3. `worldToGrid`/`gridToWorld` round-trip cleanly via raycast against ground plane
+  4. Talk button and scenario card overlay render on top of the scene without occluding action
+**Plans**: 1 plan (90 min budget; fallback: swap 3D for 2D Canvas top-down map at 60-min tripwire)
 
-**Requirements**: SCENE-01, SCENE-02, SCENE-03, SCENE-04
+Plans:
+- [ ] 02-01: Build r3f scene + reticle HUD + grid math + raycast
 
-**Tasks**:
-- `bun add three @react-three/fiber @react-three/drei zustand`
-- Build `Terrain.tsx`, `Target.tsx` (free GLB), `Friendlies.tsx`
-- `JTACController.tsx` — PointerLockControls, fixed hilltop pose
-- `Reticle.tsx` HUD — crosshair + live MGRS readout via Zustand store
-- `lib/grid.ts` — `worldToGrid` / `gridToWorld` (fake 6-digit MGRS)
-- `lib/raycast.ts` — camera forward → ground plane intersection → world coord
-- `ScenarioCard.tsx` overlaid in corner
+### Phase 3: JTAC pilot persona + grid bridge
+**Goal**: User reads a 9-line aloud; pilot reads back lines 4/6/8 in clipped comms; the bomb falls at the grid the pilot's transcript actually contained — wrong grid produces a visible miss.
+**Depends on**: Phase 2
+**Requirements**: PILOT-01, PILOT-02, PILOT-03, PILOT-04, PILOT-05, PILOT-06
+**Success Criteria** (what must be TRUE):
+  1. System prompt yields in-character "Hawg 21" comms with reliable `<grid>NNNNNN</grid>` emission
+  2. ws-server extracts grid tag, emits `grid.transmitted` event, strips tag before TTS
+  3. Frontend renders `BombImpact` falling sphere → ring + smoke at `gridToWorld(grid)`
+  4. Demonstrably: correct grid hits target, wrong grid misses
+**Plans**: 1 plan (60 min budget)
 
-**Gate**: Mouse-look works, target visible, reticle MGRS string changes as camera rotates, `gridToWorld(worldToGrid(p)) ≈ p`.
+Plans:
+- [ ] 03-01: System prompt + ws-server grid extraction + BombImpact wiring
 
-**Tripwire**: If at 60 min the target isn't on screen with reticle working → fall back to 2D Canvas top-down map (~45 min replacement scope).
-
----
-
-### Phase 3: JTAC Pilot Persona + Grid Bridge (60 min)
-
-**Goal**: AI pilot stays in character, reads back lines 4/6/8, emits `<grid>` tag, and the bomb impacts at the transmitted grid.
-
-**Depends on**: Phases 1, 2
-
-**Requirements**: PERS-01, PERS-02, PERS-03, PERS-04, BRIDGE-01, BRIDGE-02, BRIDGE-03, BRIDGE-04
-
-**Tasks**:
-- Real `prompts/system-prompt.md`: Hawg 21 persona, comms register, behavior rules, grid-tag instruction with 1-2 few-shot examples
-- Edit `ws-server/src/session.ts`: regex-extract `<grid>(\d{6})</grid>` from LLM delta stream, emit `{type:'grid.transmitted', grid}` event, strip tag before TTS
-- Frontend: subscribe to `grid.transmitted`, store in Zustand
-- `BombImpact.tsx` — falling sphere → expanding orange ring + smoke at given world coord
-- Trigger impact on "rifle"/"bombs away" detection in transcript, with 3s post-grid timer fallback
-
-**Gate**: Read a 9-line aloud → bomb falls at the grid you transmitted; transmit a wrong grid → bomb misses target.
-
-**Tripwire**: If `<grid>` tag is unreliable after few-shot tuning → fall back to post-call extraction LLM (45 min) or manual "release" button using last reticle grid.
-
----
-
-### Phase 4: Debrief Loop (60 min)
-
-**Goal**: End-of-run debrief panel rendering instructor-style critique that references the bomb impact.
-
+### Phase 4: Debrief loop
+**Goal**: User clicks "End run"; an instructor-style prose critique appears with a verdict badge that reflects whether the strike was on target / dangerously close to friendlies.
 **Depends on**: Phase 3
+**Requirements**: BRIEF-01, BRIEF-02, BRIEF-03, BRIEF-04, BRIEF-05, BRIEF-06
+**Success Criteria** (what must be TRUE):
+  1. Transcript and impact distances (to target, to friendlies) captured during run
+  2. `/api/debrief` returns `{verdict, critique}` from non-streaming DashScope LLM call
+  3. DebriefPanel renders the critique + verdict badge
+  4. A bad-grid run produces a "needs_work" or "unsafe" verdict that mentions the miss
+**Plans**: 1 plan (60 min budget)
 
-**Requirements**: DEBRIEF-01, DEBRIEF-02, DEBRIEF-03, DEBRIEF-04
+Plans:
+- [ ] 04-01: Outcome capture + /api/debrief route + DebriefPanel
 
-**Tasks**:
-- Capture transcript turn-by-turn in Zustand store
-- Compute outcome: `impactDistanceToTarget`, `impactDistanceToFriendlies`
-- "End run" button → POST `/api/debrief` with `{transcript, impactDistanceToTarget, impactDistanceToFriendlies}`
-- `app/api/debrief/route.ts` — DashScope LLM (non-streaming) with debrief prompt → returns `{verdict, critique}`
-- `prompts/debrief-prompt.md`
-- `DebriefPanel.tsx` — verdict badge + prose
-
-**Gate**: Full loop runs; deliberately bad grid produces `unsafe` or `needs_work` verdict that mentions the miss.
-
----
-
-### Phase 5: Demo Polish + Vercel Deploy (60 min)
-
-**Goal**: Mil-spec aesthetic, latency under 800ms TTFA, deployed Vercel URL works end-to-end.
-
+### Phase 5: Demo polish + Vercel deploy
+**Goal**: A judge clicking the live Vercel URL completes the full loop in <2 min on Chrome desktop with no console errors and a passable mil-spec look.
 **Depends on**: Phase 4
+**Requirements**: POLISH-01, POLISH-02, POLISH-03, DEPLOY-01, DEPLOY-02
+**Success Criteria** (what must be TRUE):
+  1. Mono font + amber/green HUD on dark + callsign header visible
+  2. TTFA latency under ~800 ms in production
+  3. `vercel --prod` deploys with `NEXT_PUBLIC_WS_URL=wss://ws.kalebnim.dev/ws`
+  4. Phone-hotspot test on deployed URL completes the loop without console errors
+**Plans**: 1 plan (60 min budget)
 
-**Requirements**: VOICE-03, DEMO-01, DEMO-02
+Plans:
+- [ ] 05-01: Aesthetic pass + latency tune + Vercel ship + smoke test
 
-**Tasks**:
-- Mil-spec HUD: mono font, amber/green-on-dark, callsign header, radio-static SFX on TX/RX
-- BiquadFilter bandpass 300–3000Hz on TTS audio (radio-comms feel)
-- Tighten system prompt with 2 dry-runs; cap max_tokens; trim history window 20→6 if latency exceeds budget
-- `vercel --prod`, set `NEXT_PUBLIC_WS_URL=wss://ws.kalebnim.dev/ws`
-- Test deployed URL on phone hotspot
-
-**Gate**: Vercel URL works end-to-end; full loop <2 min; no console errors.
-
-**Tripwire**: If Vercel WSS → ECS fails (CORS/cert issues) → fall back to running frontend locally on stage, point at ws.kalebnim.dev directly.
-
----
-
-### Phase 6: Buffer + Submission (45 min)
-
-**Goal**: Backup recording + submission complete.
-
+### Phase 6: Buffer + submission
+**Goal**: Submission accepted on luma; backup recording exists; README explains the project.
 **Depends on**: Phase 5
+**Requirements**: SUBMIT-01, SUBMIT-02, SUBMIT-03
+**Success Criteria** (what must be TRUE):
+  1. 60–90 s screen-recording backup saved
+  2. README contains what / how-to-run / why-vibes-debrief sections
+  3. Submission confirmed on luma form
+**Plans**: 1 plan (45 min budget)
 
-**Requirements**: DEMO-03
+Plans:
+- [ ] 06-01: Record backup + finalize README + submit
 
-**Tasks**:
-- 60–90s screen-recording of a clean run (kept as backup if live demo breaks)
-- Minimal README polish (already drafted at project init)
-- Submit to luma form
+## Progress
 
-**Gate**: Submission confirmed; backup recording uploaded.
+**Execution Order:**
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
----
-
-## Time Budget
-
-| Phase | Time | Cumulative |
-|---|---|---|
-| 1. Voice Scaffold | 45m | 0:45 |
-| 2. 3D Scene | 90m | 2:15 |
-| 3. Persona + Grid Bridge | 60m | 3:15 |
-| 4. Debrief Loop | 60m | 4:15 |
-| 5. Polish + Deploy | 60m | 5:15 |
-| 6. Buffer + Submission | 45m | 6:00 |
-
-No headroom — every phase has a tripwire fallback documented above.
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 1. Voice scaffold | 0/1 | Not started | - |
+| 2. 3D scene | 0/1 | Not started | - |
+| 3. JTAC pilot persona + grid bridge | 0/1 | Not started | - |
+| 4. Debrief loop | 0/1 | Not started | - |
+| 5. Demo polish + Vercel deploy | 0/1 | Not started | - |
+| 6. Buffer + submission | 0/1 | Not started | - |
