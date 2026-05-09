@@ -1,7 +1,7 @@
 // Browser -> Server message protocol
 export type BrowserMessage =
   | { type: 'audio.append'; data: string }      // base64 PCM16 16kHz mono
-  | { type: 'audio.end' }                        // manual end-of-speech signal
+  | { type: 'audio.end' }                        // release push-to-talk and commit ASR buffer
   | { type: 'session.start' }                    // initialize/re-initialize DashScope sessions
 
 // Server -> Browser message protocol

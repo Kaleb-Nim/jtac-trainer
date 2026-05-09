@@ -84,8 +84,8 @@ const server = Bun.serve<SessionData>({
           break;
 
         case 'audio.end':
-          // Signal end-of-speech to ASR (Plan 02 will handle this fully)
           console.log(`[ws] session ${session.sessionId} audio.end received`);
+          session.handleAudioEnd();
           break;
       }
     },

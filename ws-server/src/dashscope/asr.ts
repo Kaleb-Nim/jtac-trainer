@@ -9,6 +9,7 @@ export interface AsrCallbacks {
   onTranscriptPartial: (text: string) => void;
   onTranscriptFinal: (text: string) => void;
   onSpeechStarted?: () => void;   // fires on input_audio_buffer.speech_started
+  onSessionFinished?: () => void;
   onError: (message: string) => void;
 }
 
@@ -34,7 +35,9 @@ export function createAsrSession(callbacks: AsrCallbacks): Promise<WebSocket> {
     });
 
     ws.onopen = () => {
-      // Initialize ASR session with PCM 16kHz mono config and server VAD
+      // Initialize ASR session with PCM 16kHz mono config and manual turns.
+      // Browser audio is only forwarded while push-to-talk is held; release
+      // sends input_audio_buffer.commit via commitAudioBuffer().
       ws.send(
         JSON.stringify({
           type: 'session.update',
@@ -44,11 +47,7 @@ export function createAsrSession(callbacks: AsrCallbacks): Promise<WebSocket> {
             input_audio_format: 'pcm',
             sample_rate: 16000,
             input_audio_transcription: { language: 'en' },
-            turn_detection: {
-              type: 'server_vad',
-              threshold: 0.0,
-              silence_duration_ms: 1000,
-            },
+            turn_detection: null,
           },
         })
       );
@@ -70,6 +69,23 @@ export function createAsrSession(callbacks: AsrCallbacks): Promise<WebSocket> {
           callbacks.onTranscriptFinal(transcript);
           break;
         }
+
+        case 'conversation.item.input_audio_transcription.text': {
+          const text = (msg.text as string | undefined) ?? '';
+          const stash = (msg.stash as string | undefined) ?? '';
+          callbacks.onTranscriptPartial(text + stash);
+          break;
+        }
+
+        case 'conversation.item.input_audio_transcription.failed': {
+          const errMsg = (msg.error as { message?: string } | undefined)?.message ?? 'ASR transcription failed';
+          callbacks.onError(errMsg);
+          break;
+        }
+
+        case 'session.finished':
+          callbacks.onSessionFinished?.();
+          break;
 
         case 'input_audio_buffer.speech_started':
           console.log('[asr] speech started');
@@ -111,6 +127,30 @@ export function forwardAudioToAsr(asrWs: WebSocket, base64Audio: string): void {
       type: 'input_audio_buffer.append',
       event_id: 'evt_audio_' + Date.now(),
       audio: base64Audio,
+    })
+  );
+}
+
+/** Commit the current manual ASR audio buffer and request transcription. */
+export function commitAudioBuffer(asrWs: WebSocket): void {
+  if (asrWs.readyState !== WebSocket.OPEN) return;
+
+  asrWs.send(
+    JSON.stringify({
+      type: 'input_audio_buffer.commit',
+      event_id: 'evt_commit_' + Date.now(),
+    })
+  );
+}
+
+/** Finish the current ASR session after a manual commit has been sent. */
+export function finishAsrSession(asrWs: WebSocket): void {
+  if (asrWs.readyState !== WebSocket.OPEN) return;
+
+  asrWs.send(
+    JSON.stringify({
+      type: 'session.finish',
+      event_id: 'evt_finish_' + Date.now(),
     })
   );
 }

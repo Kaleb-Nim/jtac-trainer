@@ -1,7 +1,7 @@
 import type { ServerWebSocket } from 'bun';
 import type { ServerMessage } from './types';
 import type { TtsHandle } from './dashscope/tts';
-import { createAsrSession, forwardAudioToAsr } from './dashscope/asr';
+import { commitAudioBuffer, createAsrSession, finishAsrSession, forwardAudioToAsr } from './dashscope/asr';
 import { streamLlmResponse } from './dashscope/llm';
 import { createTtsSession, appendTextToTts, finishTtsSession } from './dashscope/tts';
 import { logTurn } from './logger';
@@ -27,6 +27,9 @@ export class Session {
 
   /** AbortController for the current LLM+TTS pipeline — aborted on barge-in */
   private responseAbort: AbortController | null = null;
+
+  /** Client push-to-talk turn start, used when ASR runs in manual mode. */
+  private manualAudioStart: number | null = null;
 
   private ws: ServerWebSocket<SessionData>;
 
@@ -228,8 +231,8 @@ export class Session {
     });
   }
 
-  /** Start the ASR pipeline and signal session.ready to browser once ASR is open */
-  startPipeline(): void {
+  /** Open one manual ASR session. Each push-to-talk turn finishes and rotates it. */
+  private openAsrPipeline(opts?: { greet?: boolean }): void {
     if (this.asrWs && this.asrWs.readyState === WebSocket.OPEN) {
       // Already running — re-signal ready
       this.send({ type: 'session.ready' });
@@ -238,6 +241,28 @@ export class Session {
 
     const session = this;
     let asrSpeechStart: number | null = null;
+    let activeAsrWs: WebSocket | null = null;
+    let transcriptCompleted = false;
+
+    const rotateAsr = () => {
+      session.manualAudioStart = null;
+      if (!transcriptCompleted) {
+        session.send({ type: 'transcript.final', text: '' });
+      }
+      transcriptCompleted = false;
+
+      if (activeAsrWs && session.asrWs === activeAsrWs) {
+        session.asrWs = null;
+      }
+      if (activeAsrWs?.readyState === WebSocket.OPEN) {
+        activeAsrWs.close();
+      }
+      activeAsrWs = null;
+
+      if (session.isActive) {
+        session.openAsrPipeline({ greet: false });
+      }
+    };
 
     createAsrSession({
       onSpeechStarted: () => {
@@ -247,11 +272,15 @@ export class Session {
         session.send({ type: 'transcript.partial', text });
       },
       onTranscriptFinal: (text) => {
+        transcriptCompleted = true;
+
         // Compute ASR duration
-        const asrDurationMs = asrSpeechStart !== null
-          ? Math.round(performance.now() - asrSpeechStart)
+        const turnStart = asrSpeechStart ?? session.manualAudioStart;
+        const asrDurationMs = turnStart !== null
+          ? Math.round(performance.now() - turnStart)
           : null;
         asrSpeechStart = null; // reset for next turn
+        session.manualAudioStart = null;
 
         session.send({ type: 'transcript.final', text });
         console.log(`[session] ${session.sessionId} transcript: ${text}`);
@@ -287,17 +316,34 @@ export class Session {
       onError: (message) => {
         session.send({ type: 'error', message });
       },
+      onSessionFinished: () => {
+        rotateAsr();
+      },
     }).then((asrWs) => {
+      activeAsrWs = asrWs;
+      if (!session.isActive) {
+        asrWs.close();
+        return;
+      }
+
       session.asrWs = asrWs;
       session.send({ type: 'session.ready' });
       console.log(`[session] ${session.sessionId} ASR pipeline ready`);
 
       // Proactive greeting — AI speaks first when visitor connects
-      session.startResponse('', { isGreeting: true });
+      if (opts?.greet ?? false) {
+        session.startResponse('', { isGreeting: true });
+      }
     }).catch((err) => {
+      if (!session.isActive) return;
       console.error(`[session] ${session.sessionId} ASR failed to open:`, err);
       session.send({ type: 'error', message: 'ASR connection failed' });
     });
+  }
+
+  /** Start the ASR pipeline and signal session.ready to browser once ASR is open */
+  startPipeline(): void {
+    this.openAsrPipeline({ greet: true });
   }
 
   /** Forward browser audio to the ASR WebSocket */
@@ -306,7 +352,18 @@ export class Session {
       this.send({ type: 'error', message: 'Session not started — send session.start first' });
       return;
     }
+    this.manualAudioStart ??= performance.now();
     forwardAudioToAsr(this.asrWs, base64);
+  }
+
+  /** Commit the currently buffered push-to-talk turn to ASR. */
+  handleAudioEnd(): void {
+    if (!this.asrWs) {
+      this.send({ type: 'error', message: 'Session not started — send session.start first' });
+      return;
+    }
+    commitAudioBuffer(this.asrWs);
+    finishAsrSession(this.asrWs);
   }
 
   /** Close all DashScope WebSockets and mark session inactive */
