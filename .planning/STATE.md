@@ -83,6 +83,12 @@ None yet.
 |----------|------|--------|-------------|
 | *(none)* | | | |
 
+## Quick Tasks Completed
+
+| ID | Task | Completed |
+|----|------|-----------|
+| 260509-tts-persona-voice | Switch Alibaba realtime TTS to Qwen3 persona voice (default Ethan) | 2026-05-09 |
+
 ## Session Continuity
 
 Last session: 2026-05-09T04:59:29.667Z
