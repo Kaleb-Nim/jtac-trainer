@@ -1,7 +1,9 @@
 // DashScope TTS WebSocket client
-// Connects to Qwen3-TTS in server_commit mode using Kaleb's cloned voice.
-// The DASHSCOPE_API_KEY and DASHSCOPE_VOICE_ID are read from process.env
-// and never configurable via browser messages (security: T-02-08).
+// Connects to Qwen3-TTS in server_commit mode using a Qwen-provided persona voice
+// (e.g. "Ethan"). The DASHSCOPE_API_KEY is read from process.env, and the persona
+// voice id is read from DASHSCOPE_VOICE_ID with a default of "Ethan" (male English,
+// fits the JTAC pilot character). Env-only config — never set from browser messages
+// (security: T-02-08).
 
 const TTS_WS_URL =
   'wss://dashscope-intl.aliyuncs.com/api-ws/v1/realtime?model=qwen3-tts-vc-realtime-2026-01-15';
@@ -24,7 +26,7 @@ export interface TtsHandle {
 
 /**
  * Open a DashScope TTS WebSocket session in server_commit mode.
- * Sends session.update on open with Kaleb's cloned voice_id.
+ * Sends session.update on open with the configured persona voice (default "Ethan").
  * Routes incoming messages to callbacks.
  * Returns a promise that resolves with a TtsHandle once the connection is open
  * and the session.update has been sent.
@@ -35,7 +37,9 @@ export interface TtsHandle {
  */
 export function createTtsSession(callbacks: TtsCallbacks): Promise<TtsHandle> {
   const apiKey = process.env.DASHSCOPE_API_KEY;
-  const voiceId = process.env.DASHSCOPE_VOICE_ID;
+  // Qwen3-TTS persona voice (e.g. Ethan, Dylan, Cherry, Chelsie, Serena).
+  // Defaults to "Ethan" — male English voice that suits the JTAC pilot persona.
+  const voiceId = process.env.DASHSCOPE_VOICE_ID || 'Ethan';
 
   if (!apiKey) {
     callbacks.onError('DASHSCOPE_API_KEY is not set');
@@ -55,7 +59,7 @@ export function createTtsSession(callbacks: TtsCallbacks): Promise<TtsHandle> {
     handle.ws = ws;
 
     ws.onopen = () => {
-      // Initialize TTS session with server_commit mode and Kaleb's voice
+      // Initialize TTS session with server_commit mode and the persona voice
       ws.send(
         JSON.stringify({
           type: 'session.update',
