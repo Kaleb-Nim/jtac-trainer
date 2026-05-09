@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-05-09)
 
 ## Current Position
 
-Phase: 1 of 6 (Voice scaffold)
+Phase: 2 of 6 (3D scene)
 Plan: 0 of 1 in current phase
-Status: Ready to plan
-Last activity: 2026-05-09 — Ingested original-plan.md into PROJECT/REQUIREMENTS/ROADMAP
+Status: Phase 1 complete — ready to plan Phase 2
+Last activity: 2026-05-09 — Phase 1 verified end-to-end via Playwright (VOICE-01..04 all green)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█░░░░░░░░░] 17%
 
 ## Performance Metrics
 

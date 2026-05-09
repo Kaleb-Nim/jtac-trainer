@@ -6,7 +6,7 @@ Six phases time-boxed inside a 6-hour hackathon sprint. Phase 1 stands up the re
 
 ## Phases
 
-- [ ] **Phase 1: Voice scaffold** — Reuse nim-kaleb ws-server + voice hook; confirm round-trip
+- [x] **Phase 1: Voice scaffold** — Reuse nim-kaleb ws-server + voice hook; confirm round-trip
 - [ ] **Phase 2: 3D scene** — react-three-fiber scene with terrain, target, friendlies, reticle, live grid
 - [ ] **Phase 3: JTAC pilot persona + grid bridge** — Hawg 21 prompt + `<grid>` tag → bomb impact at transmitted grid
 - [ ] **Phase 4: Debrief loop** — Capture transcript+outcome, `/api/debrief` route, prose verdict UI
@@ -27,7 +27,7 @@ Six phases time-boxed inside a 6-hour hackathon sprint. Phase 1 stands up the re
 **Plans**: 1 plan (45 min budget)
 
 Plans:
-- [ ] 01-01: Wire reused ws-server + useRealtimeVoice into bare talk button page
+- [x] 01-01: Wire reused ws-server + useRealtimeVoice into bare talk button page
 
 ### Phase 2: 3D scene
 **Goal**: User opens the page and sees a fullscreen 3D scene with terrain, target, friendlies, and a HUD reticle that shows a live changing 6-digit MGRS grid as they mouse-look.
@@ -105,7 +105,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Voice scaffold | 0/1 | Not started | - |
+| 1. Voice scaffold | 1/1 | Complete | 2026-05-09 |
 | 2. 3D scene | 0/1 | Not started | - |
 | 3. JTAC pilot persona + grid bridge | 0/1 | Not started | - |
 | 4. Debrief loop | 0/1 | Not started | - |
