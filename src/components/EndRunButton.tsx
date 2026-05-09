@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useStore, type TurnLog, type ImpactResult, type Debrief } from '@/lib/store';
+import { useStore, type TurnLog, type ImpactResult, type Evaluation } from '@/lib/store';
 
 export default function EndRunButton() {
   const impactResult = useStore((s) => s.impactResult);
   const transcript = useStore((s) => s.transcript);
-  const debrief = useStore((s) => s.debrief);
+  const evaluation = useStore((s) => s.evaluation);
   const [inFlight, setInFlight] = useState(false);
 
   // Dev hooks for debrief-smoke.ts (mirrors BombImpact pattern at L171-188)
@@ -15,26 +15,26 @@ export default function EndRunButton() {
     const w = window as unknown as {
       __appendTurn?: (t: TurnLog) => void;
       __triggerEndRun?: () => void;
-      __getDebrief?: () => Debrief;
+      __getEvaluation?: () => Evaluation;
     };
     w.__appendTurn = (t) => useStore.getState().appendTurn(t);
     w.__triggerEndRun = () => {
       const btn = document.querySelector('[data-testid="end-run"]') as HTMLButtonElement | null;
       btn?.click();
     };
-    w.__getDebrief = () => useStore.getState().debrief;
+    w.__getEvaluation = () => useStore.getState().evaluation;
     return () => {
       delete w.__appendTurn;
       delete w.__triggerEndRun;
-      delete w.__getDebrief;
+      delete w.__getEvaluation;
     };
   }, []);
 
-  const hasDebrief = debrief !== null;
-  const disabled = !hasDebrief && (impactResult === null || inFlight);
+  const hasEvaluation = evaluation !== null;
+  const disabled = !hasEvaluation && (impactResult === null || inFlight);
 
   const onClick = async () => {
-    if (hasDebrief) {
+    if (hasEvaluation) {
       useStore.getState().endRun();
       return;
     }
@@ -53,22 +53,30 @@ export default function EndRunButton() {
           : null,
         correctGrid: '599699',
       };
-      const res = await fetch('/api/debrief', {
+      const res = await fetch('/api/evaluate', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error('http ' + res.status);
-      const json = (await res.json()) as { verdict: 'solid' | 'needs_work' | 'unsafe' | 'no_strike'; critique: string };
-      useStore.getState().setDebrief(json);
+      const json = (await res.json()) as {
+        scores: { overall: number; phraseology: number; gridAccuracy: number; safety: number };
+        didWell: string[];
+        needsWork: string[];
+      };
+      useStore.getState().setEvaluation(json);
     } catch {
-      useStore.getState().setDebrief({ verdict: 'no_strike', critique: 'Debrief request failed locally.' });
+      useStore.getState().setEvaluation({
+        scores: { overall: 0, phraseology: 0, gridAccuracy: 0, safety: 0 },
+        didWell: [],
+        needsWork: ['Evaluator request failed locally.'],
+      });
     } finally {
       setInFlight(false);
     }
   };
 
-  const label = hasDebrief
+  const label = hasEvaluation
     ? '[ NEW RUN ]'
     : inFlight
       ? '[ ANALYZING... ]'
