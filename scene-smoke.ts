@@ -47,11 +47,9 @@ try {
     process.exit(1);
   }
 
-  const scenarioCount = await page
-    .locator('text=Armor column reported at grid 600200')
-    .count();
-  if (scenarioCount !== 1) {
-    console.log(`FAIL: scenario brief text not found (count=${scenarioCount})`);
+  const briefCount = await page.locator('text=9-LINE BRIEF').count();
+  if (briefCount !== 1) {
+    console.log(`FAIL: 9-LINE BRIEF heading not found (count=${briefCount})`);
     process.exit(1);
   }
 
