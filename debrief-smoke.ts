@@ -4,10 +4,10 @@
 // /api/debrief via page.route() so the smoke is offline-stable and the
 // verdict text is deterministic.
 //
-//   Test A (solid):  inject grid 599699 → impact → append 2 fake turns →
+//   Test A (solid):  inject grid 599699 → release → impact → append 2 fake turns →
 //                    intercepted route returns {verdict:'solid', ...} →
 //                    click END RUN → assert badge text === 'solid'.
-//   Test B (unsafe): dismiss via NEW RUN → inject grid 599799 → impact →
+//   Test B (unsafe): dismiss via NEW RUN → inject grid 599799 → release → impact →
 //                    append turns → intercepted route returns
 //                    {verdict:'unsafe', critique:'... 19.7 m ...'} →
 //                    click END RUN → assert badge text === 'unsafe' AND
@@ -70,6 +70,11 @@ try {
     { timeout: 8000 },
   );
   await page.waitForFunction(
+    () => typeof (window as unknown as { __releaseWeapon?: unknown }).__releaseWeapon === 'function',
+    null,
+    { timeout: 8000 },
+  );
+  await page.waitForFunction(
     () => typeof (window as unknown as { __getStore?: unknown }).__getStore === 'function',
     null,
     { timeout: 8000 },
@@ -91,6 +96,9 @@ try {
 
   await page.evaluate(() =>
     (window as unknown as { __setTransmittedGrid: (g: string) => void }).__setTransmittedGrid('599699'),
+  );
+  await page.evaluate(() =>
+    (window as unknown as { __releaseWeapon: (g: string) => void }).__releaseWeapon('599699'),
   );
   await page.waitForFunction(
     () => (window as unknown as { __getImpactResult: () => unknown }).__getImpactResult() !== null,
@@ -130,6 +138,9 @@ try {
 
   await page.evaluate(() =>
     (window as unknown as { __setTransmittedGrid: (g: string) => void }).__setTransmittedGrid('599799'),
+  );
+  await page.evaluate(() =>
+    (window as unknown as { __releaseWeapon: (g: string) => void }).__releaseWeapon('599799'),
   );
   await page.waitForFunction(
     () => (window as unknown as { __getImpactResult: () => unknown }).__getImpactResult() !== null,

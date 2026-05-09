@@ -18,6 +18,7 @@ import type { Mesh } from 'three';
 import { useStore } from '@/lib/store';
 import { gridToWorld } from '@/lib/grid';
 import { TARGET_WORLD, FRIENDLIES_WORLD } from '@/lib/positions';
+import { terrainHeight } from './terrainProfile';
 
 type Phase = 'idle' | 'delay' | 'falling' | 'impact' | 'cooldown';
 
@@ -109,9 +110,10 @@ export default function BombImpact() {
     }
 
     if (current === 'falling' && sphere) {
+      const groundY = terrainHeight(target.x, target.z);
       const t = Math.min(1, elapsed / FALL_DURATION_S);
       const eased = t * t; // ease-in (gravity-ish)
-      const y = FALL_FROM_Y * (1 - eased);
+      const y = groundY + FALL_FROM_Y * (1 - eased);
       sphere.visible = true;
       sphere.position.set(target.x, y, target.z);
       if (t >= 1) {
@@ -134,11 +136,12 @@ export default function BombImpact() {
     }
 
     if (current === 'impact' && ring) {
+      const groundY = terrainHeight(target.x, target.z);
       const t = Math.min(1, elapsed / RING_DURATION_S);
       ring.visible = true;
       const r = RING_R0 + (RING_R1 - RING_R0) * t;
       ring.scale.setScalar(r);
-      ring.position.set(target.x, 0.2, target.z);
+      ring.position.set(target.x, groundY + 0.2, target.z);
       const mat = (ring.material as { opacity?: number; transparent?: boolean });
       if (mat) { mat.transparent = true; mat.opacity = 1 - t; }
 
@@ -149,7 +152,7 @@ export default function BombImpact() {
         const [ox, oz] = SMOKE_OFFSETS[i] ?? [0, 0];
         const scale = 1 + 4 * sT;
         m.scale.setScalar(scale);
-        m.position.set(target.x + ox, 1 + 8 * sT, target.z + oz);
+        m.position.set(target.x + ox, groundY + 1 + 8 * sT, target.z + oz);
         const sm = (m.material as { opacity?: number; transparent?: boolean });
         if (sm) { sm.transparent = true; sm.opacity = Math.max(0, 0.6 * (1 - sT)); }
       });
