@@ -2,7 +2,7 @@
 
 A voice-first JTAC CAS 9-line trainer for the AIE Open Canvas Hackathon (luma.com/aie-hack).
 
-**The loop:** Survey terrain in a 3D first-person view. Speak a 9-line CAS brief to "Hawg 21" (an A-10 pilot agent). The bomb impacts wherever your transmission said it should — so a wrong grid produces a visible miss. End the run for an instructor-style debrief.
+**The loop:** Survey terrain in a 3D first-person view. Speak a 9-line CAS brief to "hog1" (an A-10 pilot agent). The bomb impacts wherever your transmission said it should — so a wrong grid produces a visible miss. End the run for an instructor-style debrief.
 
 Built on the 3-WebSocket DashScope voice pipeline (ASR → LLM → TTS) reused from `nim-kaleb`.
 
