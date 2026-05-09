@@ -22,12 +22,12 @@
 
 ### JTAC Persona + Grid Bridge
 
-- [ ] **PILOT-01**: System prompt establishes "Hawg 21" A-10 pilot, clipped comms register, never breaks character
-- [ ] **PILOT-02**: Pilot reads back lines 4 (heading), 6 (target location), 8 (friendlies) of the 9-line
-- [ ] **PILOT-03**: When reading back line 6, LLM emits hidden `<grid>NNNNNN</grid>` tag matching transmitted grid
-- [ ] **PILOT-04**: ws-server regex-extracts `<grid>(\d{6})</grid>` from LLM stream, emits `{type:'grid.transmitted', grid}` to client, strips tag from text before TTS
-- [ ] **PILOT-05**: Frontend triggers `BombImpact` at `gridToWorld(grid)` on `grid.transmitted` (or after "rifle/bombs away" cue)
-- [ ] **PILOT-06**: Correct transmitted grid → impact ring overlaps target; wrong grid → impact lands away from target
+- [x] **PILOT-01**: System prompt establishes "Hawg 21" A-10 pilot, clipped comms register, never breaks character
+- [x] **PILOT-02**: Pilot reads back lines 4 (heading), 6 (target location), 8 (friendlies) of the 9-line
+- [x] **PILOT-03**: When reading back line 6, LLM emits hidden `<grid>NNNNNN</grid>` tag matching transmitted grid
+- [x] **PILOT-04**: ws-server regex-extracts `<grid>(\d{6})</grid>` from LLM stream, emits `{type:'grid.transmitted', grid}` to client, strips tag from text before TTS
+- [x] **PILOT-05**: Frontend triggers `BombImpact` at `gridToWorld(grid)` on `grid.transmitted` (or after "rifle/bombs away" cue)
+- [x] **PILOT-06**: Correct transmitted grid → impact ring overlaps target; wrong grid → impact lands away from target
 
 ### Debrief
 
@@ -82,12 +82,12 @@
 | SCENE-03 | Phase 2 | Pending |
 | SCENE-04 | Phase 2 | Pending |
 | SCENE-05 | Phase 2 | Pending |
-| PILOT-01 | Phase 3 | Pending |
-| PILOT-02 | Phase 3 | Pending |
-| PILOT-03 | Phase 3 | Pending |
-| PILOT-04 | Phase 3 | Pending |
-| PILOT-05 | Phase 3 | Pending |
-| PILOT-06 | Phase 3 | Pending |
+| PILOT-01 | Phase 3 | Complete |
+| PILOT-02 | Phase 3 | Complete |
+| PILOT-03 | Phase 3 | Complete |
+| PILOT-04 | Phase 3 | Complete |
+| PILOT-05 | Phase 3 | Complete |
+| PILOT-06 | Phase 3 | Complete |
 | BRIEF-01 | Phase 4 | Pending |
 | BRIEF-02 | Phase 4 | Pending |
 | BRIEF-03 | Phase 4 | Pending |

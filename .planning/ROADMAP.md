@@ -55,7 +55,7 @@ Plans:
 **Plans**: 1 plan (60 min budget)
 
 Plans:
-- [ ] 03-01: System prompt + ws-server grid extraction + BombImpact wiring
+- [x] 03-01: System prompt + ws-server grid extraction + BombImpact wiring
 
 ### Phase 4: Debrief loop
 **Goal**: User clicks "End run"; an instructor-style prose critique appears with a verdict badge that reflects whether the strike was on target / dangerously close to friendlies.
