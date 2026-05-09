@@ -92,6 +92,12 @@ export class Session {
     // Accumulate assistant response for history
     let assistantResponse = '';
 
+    // Per-turn buffer for <grid>NNNNNN</grid> tag extraction (Phase 3 / PILOT-04).
+    // Tags must be stripped from TTS, response.text.delta, and assistantResponse so
+    // the JTAC never hears or sees them — they're machine-only signals to the client.
+    let pendingText = '';
+    const GRID_RE = /<grid>(\d{6})<\/grid>/;
+
     // Open TTS session — promise resolves once WS is open
     const ttsReadyPromise = createTtsSession({
       onAudioDelta: (delta) => {
@@ -135,6 +141,15 @@ export class Session {
         ? '[GREETING] The visitor just activated the voice interface. Greet them.'
         : userText;
 
+      // Helper: forward a clean (tag-stripped) text fragment to TTS, client text
+      // stream, and history accumulator. Empty strings are no-ops.
+      const flushClean = (text: string) => {
+        if (!text) return;
+        appendTextToTts(handle, text);
+        session.send({ type: 'response.text.delta', delta: text });
+        assistantResponse += text;
+      };
+
       streamLlmResponse(
         prompt,
         session.conversationHistory.slice(),
@@ -144,12 +159,54 @@ export class Session {
             llmTtftMs = Math.round(performance.now() - (ttsOpenTime ?? turnStart));
             firstLlmChunk = false;
           }
-          appendTextToTts(handle, chunk);
-          session.send({ type: 'response.text.delta', delta: chunk });
-          assistantResponse += chunk;
+          pendingText += chunk;
+
+          // Drain all complete <grid>NNNNNN</grid> matches from the buffer. Text
+          // before each match is flushed clean; the tag itself becomes a
+          // grid.transmitted server message and is dropped from the user-visible
+          // streams.
+          let match: RegExpExecArray | null;
+          while ((match = GRID_RE.exec(pendingText)) !== null) {
+            const grid = match[1];
+            const before = pendingText.slice(0, match.index);
+            const after = pendingText.slice(match.index + match[0].length);
+            flushClean(before);
+            session.send({ type: 'grid.transmitted', grid });
+            pendingText = after;
+          }
+
+          // Hold back any tail starting at the FIRST unmatched '<' in case it's
+          // the start of a tag split across the next chunk; flush everything
+          // before it. Using indexOf (not lastIndexOf) is critical: with a tag
+          // like '<grid>599699</gri...' the open '<grid>' must be preserved
+          // until the closing '</grid>' arrives — lastIndexOf would point at
+          // the '</' and leak the '<grid>NNNNNN' prefix to TTS.
+          const firstLt = pendingText.indexOf('<');
+          if (firstLt === -1) {
+            flushClean(pendingText);
+            pendingText = '';
+          } else {
+            flushClean(pendingText.slice(0, firstLt));
+            pendingText = pendingText.slice(firstLt);
+          }
         },
         () => {
           if (abort.signal.aborted) return;
+          // Final scan: any complete tag that arrived as the last chunk's tail
+          // is extracted now; remaining text (including incomplete '<...' that
+          // never closed) is flushed verbatim so the client doesn't lose words.
+          let m: RegExpExecArray | null;
+          while ((m = GRID_RE.exec(pendingText)) !== null) {
+            const g = m[1];
+            const before = pendingText.slice(0, m.index);
+            const after = pendingText.slice(m.index + m[0].length);
+            flushClean(before);
+            session.send({ type: 'grid.transmitted', grid: g });
+            pendingText = after;
+          }
+          flushClean(pendingText);
+          pendingText = '';
+
           finishTtsSession(handle);
           if (assistantResponse) {
             session.conversationHistory.push({ role: 'assistant', content: assistantResponse });

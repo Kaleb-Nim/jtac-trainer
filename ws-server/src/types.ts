@@ -12,6 +12,7 @@ export type ServerMessage =
   | { type: 'response.audio.delta'; delta: string } // base64 PCM 24kHz chunk
   | { type: 'response.text.delta'; delta: string }  // LLM text chunk for transcript display
   | { type: 'response.done'; immediate?: boolean } // TTS finished; immediate=true means barge-in (stop audio now)
+  | { type: 'grid.transmitted'; grid: string }   // 6-digit MGRS extracted from a hidden <grid>NNNNNN</grid> tag in LLM stream
   | { type: 'error'; message: string }           // error from any pipeline stage
 
 export function isValidBrowserMessage(msg: unknown): msg is BrowserMessage {
