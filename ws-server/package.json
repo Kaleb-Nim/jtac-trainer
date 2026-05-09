@@ -1,0 +1,16 @@
+{
+  "name": "kaleb-voice-ws-server",
+  "version": "1.0.0",
+  "module": "src/index.ts",
+  "scripts": {
+    "start": "bun src/index.ts",
+    "dev": "bun --watch src/index.ts",
+    "build": "bun build --target=bun src/index.ts --outdir=dist"
+  },
+  "dependencies": {
+    "openai": "^6.32.0"
+  },
+  "devDependencies": {
+    "bun-types": "latest"
+  }
+}
