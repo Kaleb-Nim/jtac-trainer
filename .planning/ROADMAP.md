@@ -8,7 +8,7 @@ Six phases time-boxed inside a 6-hour hackathon sprint. Phase 1 stands up the re
 
 - [x] **Phase 1: Voice scaffold** — Reuse nim-kaleb ws-server + voice hook; confirm round-trip
 - [x] **Phase 2: 3D scene** — react-three-fiber scene with terrain, target, friendlies, reticle, live grid
-- [ ] **Phase 3: JTAC pilot persona + grid bridge** — Hawg 21 prompt + `<grid>` tag → bomb impact at transmitted grid
+- [x] **Phase 3: JTAC pilot persona + grid bridge** — Hawg 21 prompt + `<grid>` tag → bomb impact at transmitted grid
 - [ ] **Phase 4: Debrief loop** — Capture transcript+outcome, `/api/debrief` route, prose verdict UI
 - [ ] **Phase 5: Demo polish + Vercel deploy** — Mil-spec aesthetic, latency tighten, ship to Vercel
 - [ ] **Phase 6: Buffer + submission** — Backup recording, README, luma form
