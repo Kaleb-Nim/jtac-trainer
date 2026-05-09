@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-05-09)
 
 **Core value:** A wrong voice transmission produces a visible, consequential miss on screen.
-**Current focus:** Phase 1 — Voice scaffold
+**Current focus:** Phase 3 — JTAC pilot persona + grid bridge
 
 ## Current Position
 
-Phase: 2 of 6 (3D scene)
+Phase: 3 of 6 (JTAC pilot persona + grid bridge)
 Plan: 0 of 1 in current phase
-Status: Phase 1 complete — ready to plan Phase 2
-Last activity: 2026-05-09 — Phase 1 verified end-to-end via Playwright (VOICE-01..04 all green)
+Status: Phase 2 complete — ready to plan Phase 3
+Last activity: 2026-05-09 — Phase 2 (3D scene) verified end-to-end (tsc + scene-smoke + voice-smoke all green; SCENE-01..05)
 
-Progress: [█░░░░░░░░░] 17%
+Progress: [███░░░░░░░] 33%
 
 ## Performance Metrics
 
@@ -42,6 +42,8 @@ Recent decisions affecting current work:
 
 - Project setup: Hackathon sprint — bypass full GSD ceremony, ingest existing PLAN.md directly
 - Phase 1: Reuse nim-kaleb ws-server + voice hook verbatim (one edit allowed in Phase 3)
+- Phase 2: useRealtimeVoice() called exactly once in page.tsx; slices passed to TalkButton/DebugPanel as props (avoid double WS session). Hidden h1 retained for voice-smoke.ts contract.
+- Phase 2: Faked 6-digit grid (no real MGRS); 1000m square ground plane; raycast throttled to ~10 Hz.
 
 ### Pending Todos
 
@@ -61,5 +63,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-09
-Stopped at: Ingested original-plan.md → wrote PROJECT/REQUIREMENTS/ROADMAP/STATE
-Resume file: None — run `/gsd-plan-phase 1` next
+Stopped at: Completed Phase 2 (02-01-PLAN.md) — scene + reticle + HUD all green
+Resume file: None — run `/gsd-plan-phase 3` next

@@ -15,6 +15,8 @@ export default function Home() {
 
   return (
     <main className="relative h-screen w-screen overflow-hidden bg-black font-mono text-zinc-100">
+      {/* Visually-hidden H1 for accessibility + voice-smoke.ts regression contract. */}
+      <h1 className="sr-only absolute -top-[9999px] left-[-9999px]">JTAC Trainer</h1>
       <Scene />
       <Reticle />
       <ScenarioCard />
