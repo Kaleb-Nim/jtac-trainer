@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useStore } from '@/lib/store';
 
 export type RealtimePhase = 'idle' | 'connecting' | 'listening' | 'responding' | 'error';
 
@@ -280,6 +281,17 @@ export function useRealtimeVoice() {
             }
             lastSourceRef.current = null;
           }
+        }
+        break;
+      }
+
+      case 'grid.transmitted': {
+        // Phase 3 / PILOT-04: ws-server extracted a <grid>NNNNNN</grid> tag
+        // from the LLM response stream. Validate 6 digits and write to the
+        // Zustand store; BombImpact subscribes and animates the impact.
+        const grid = (event as { grid?: string }).grid;
+        if (grid && /^\d{6}$/.test(grid)) {
+          useStore.getState().setTransmittedGrid(grid);
         }
         break;
       }

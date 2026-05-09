@@ -4,6 +4,7 @@ import { Canvas } from '@react-three/fiber';
 import Terrain from './Terrain';
 import Target from './Target';
 import Friendlies from './Friendlies';
+import BombImpact from './BombImpact';
 import JTACController from './JTACController';
 
 export default function Scene() {
@@ -18,6 +19,7 @@ export default function Scene() {
       <Terrain />
       <Target />
       <Friendlies />
+      <BombImpact />
       <JTACController />
     </Canvas>
   );
