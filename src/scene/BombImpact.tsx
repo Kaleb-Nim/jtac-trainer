@@ -1,15 +1,15 @@
 'use client';
 
 // BombImpact — Phase 3 / PILOT-05.
-// Subscribes to the Zustand `transmittedGrid`. On a new non-null value:
+// Subscribes to the Zustand `weaponRelease`. On a new non-null value:
 //   delay (1.0s) → falling sphere (0.8s, eased) → impact (orange ring + smoke)
 //   → cooldown → idle. At impact, writes a typed ImpactResult to the store
 //   for Phase 4 debrief consumption.
-// On `transmittedGrid` → null (R-key reset), immediately hides all effects
+// On `weaponRelease` → null (R-key reset), immediately hides all effects
 // and clears the lastHandled latch so a subsequent re-trigger works.
 //
 // Dev hooks (NODE_ENV !== 'production'): exposes window.__setTransmittedGrid,
-// window.__getImpactResult, window.__getStore for the bomb-smoke regression
+// window.__releaseWeapon, window.__getImpactResult, window.__getStore for the bomb-smoke regression
 // to drive the component without going through ws-server.
 
 import { useEffect, useRef, useState } from 'react';
@@ -47,13 +47,14 @@ function dist2(ax: number, az: number, bx: number, bz: number): number {
 }
 
 export default function BombImpact() {
-  const transmittedGrid = useStore((s) => s.transmittedGrid);
+  const weaponRelease = useStore((s) => s.weaponRelease);
 
   const [phase, setPhase] = useState<Phase>('idle');
   const phaseRef = useRef<Phase>('idle');
   useEffect(() => { phaseRef.current = phase; }, [phase]);
 
-  const lastHandledRef = useRef<string | null>(null);
+  const lastHandledRef = useRef<number | null>(null);
+  const releaseGridRef = useRef<string>('');
   const startRef = useRef<number>(0); // seconds (perf.now/1000)
   const targetRef = useRef<{ x: number; z: number } | null>(null);
 
@@ -63,24 +64,26 @@ export default function BombImpact() {
 
   // Drive new-grid / null-reset transitions.
   useEffect(() => {
-    if (transmittedGrid === null) {
+    if (weaponRelease === null) {
       // R-key reset: hide all effect meshes, return to idle, clear latch so
       // the same grid can re-trigger after a future Take.
       setPhase('idle');
       lastHandledRef.current = null;
+      releaseGridRef.current = '';
       targetRef.current = null;
       if (sphereRef.current) sphereRef.current.visible = false;
       if (ringRef.current) ringRef.current.visible = false;
       smokeRefs.current.forEach((m) => { if (m) m.visible = false; });
       return;
     }
-    if (transmittedGrid === lastHandledRef.current) return;
-    lastHandledRef.current = transmittedGrid;
-    const w = gridToWorld(transmittedGrid);
+    if (weaponRelease.id === lastHandledRef.current) return;
+    lastHandledRef.current = weaponRelease.id;
+    releaseGridRef.current = weaponRelease.grid;
+    const w = gridToWorld(weaponRelease.grid);
     targetRef.current = { x: w.x, z: w.z };
     startRef.current = performance.now() / 1000;
     setPhase('delay');
-  }, [transmittedGrid]);
+  }, [weaponRelease]);
 
   // Per-frame animation driver. All time math is local to startRef so each
   // strike is independent.
@@ -117,7 +120,7 @@ export default function BombImpact() {
         const dToTarget = dist2(target.x, target.z, TARGET_WORLD.x, TARGET_WORLD.z);
         const dToFriendlies = dist2(target.x, target.z, FRIENDLIES_WORLD.x, FRIENDLIES_WORLD.z);
         useStore.getState().setImpactResult({
-          grid: lastHandledRef.current ?? '',
+          grid: releaseGridRef.current,
           world: impactWorld,
           distanceToTarget: dToTarget,
           distanceToFriendlies: dToFriendlies,
@@ -174,14 +177,17 @@ export default function BombImpact() {
     if (process.env.NODE_ENV === 'production') return;
     const w = window as unknown as {
       __setTransmittedGrid?: (g: string | null) => void;
+      __releaseWeapon?: (g: string) => void;
       __getImpactResult?: () => unknown;
       __getStore?: () => unknown;
     };
     w.__setTransmittedGrid = (g) => useStore.getState().setTransmittedGrid(g);
+    w.__releaseWeapon = (g) => useStore.getState().releaseWeapon(g);
     w.__getImpactResult = () => useStore.getState().impactResult;
     w.__getStore = () => useStore.getState();
     return () => {
       delete w.__setTransmittedGrid;
+      delete w.__releaseWeapon;
       delete w.__getImpactResult;
       delete w.__getStore;
     };

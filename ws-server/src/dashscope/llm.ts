@@ -11,6 +11,30 @@ const client = new OpenAI({
   baseURL: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
 });
 
+export type LlmToolCall = {
+  name: string;
+  arguments: string;
+};
+
+const DROP_BOMB_TOOL = {
+  type: 'function',
+  function: {
+    name: 'drop_bomb',
+    description: 'Release one simulated weapon at the JTAC-provided six-digit MGRS grid. Call only after the JTAC explicitly clears hot.',
+    parameters: {
+      type: 'object',
+      properties: {
+        mgrs: {
+          type: 'string',
+          description: 'The exact six-digit MGRS grid from the latest JTAC line-6 target-location readback.',
+        },
+      },
+      required: ['mgrs'],
+      additionalProperties: false,
+    },
+  },
+} as const;
+
 // Load system prompt once at module init — path relative to ws-server root
 const systemPrompt = readFileSync(
   resolve(import.meta.dir, '../../../prompts/system-prompt.md'),
@@ -30,7 +54,8 @@ export async function streamLlmResponse(
   onDone: () => void,
   onError: (msg: string) => void,
   signal?: AbortSignal,
-  bargeInPrefix?: string
+  bargeInPrefix?: string,
+  onToolCall?: (toolCall: LlmToolCall) => void
 ): Promise<void> {
   console.log(`[llm] streaming started for: "${transcript.slice(0, 50)}..."`);
 
@@ -49,9 +74,12 @@ export async function streamLlmResponse(
       model: 'qwen-plus',
       stream: true,
       messages,
+      tools: [DROP_BOMB_TOOL],
+      tool_choice: 'auto',
     });
 
     let buffer = '';
+    const toolCallDeltas = new Map<number, LlmToolCall>();
 
     for await (const chunk of stream) {
       // Abort early if signal fires (barge-in from new user utterance)
@@ -61,7 +89,17 @@ export async function streamLlmResponse(
         return;
       }
 
-      const token = chunk.choices[0]?.delta?.content ?? '';
+      const choice = chunk.choices[0];
+      const token = choice?.delta?.content ?? '';
+      for (const toolCall of choice?.delta?.tool_calls ?? []) {
+        const existing = toolCallDeltas.get(toolCall.index) ?? { name: '', arguments: '' };
+        const fn = toolCall.function;
+        toolCallDeltas.set(toolCall.index, {
+          name: existing.name + (fn?.name ?? ''),
+          arguments: existing.arguments + (fn?.arguments ?? ''),
+        });
+      }
+
       if (!token) continue;
 
       buffer += token;
@@ -79,6 +117,10 @@ export async function streamLlmResponse(
     // Flush any remaining content
     if (buffer.length > 0) {
       onChunk(buffer);
+    }
+
+    for (const toolCall of toolCallDeltas.values()) {
+      if (toolCall.name) onToolCall?.(toolCall);
     }
 
     onDone();

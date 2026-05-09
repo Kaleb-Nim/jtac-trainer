@@ -1,8 +1,8 @@
 // Browser -> Server message protocol
 export type BrowserMessage =
-  | { type: 'audio.append'; data: string }      // base64 PCM16 16kHz mono
-  | { type: 'audio.end' }                        // release push-to-talk and commit ASR buffer
-  | { type: 'session.start' }                    // initialize/re-initialize DashScope sessions
+  | { type: 'audio.append'; data: string }      // base64 PCM16 24kHz mono
+  | { type: 'audio.end' }                       // release push-to-talk and transcribe buffer
+  | { type: 'session.start' }                   // initialize/re-initialize voice resources
 
 // Server -> Browser message protocol
 export type ServerMessage =
@@ -13,6 +13,7 @@ export type ServerMessage =
   | { type: 'response.text.delta'; delta: string }  // LLM text chunk for transcript display
   | { type: 'response.done'; immediate?: boolean } // TTS finished; immediate=true means barge-in (stop audio now)
   | { type: 'grid.transmitted'; grid: string }   // 6-digit MGRS extracted from a hidden <grid>NNNNNN</grid> tag in LLM stream
+  | { type: 'weapon.release'; grid: string }     // release tool accepted; client may animate impact at this grid
   | { type: 'error'; message: string }           // error from any pipeline stage
 
 export function isValidBrowserMessage(msg: unknown): msg is BrowserMessage {

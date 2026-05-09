@@ -22,7 +22,7 @@ export interface RealtimeStatus {
 const WS_SERVER_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:8080/ws';
 
 // Audio sample rates
-const MIC_SAMPLE_RATE = 16000;     // ASR requires 16kHz mono PCM
+const MIC_SAMPLE_RATE = 24000;     // OpenAI ASR/TTS pipeline uses 24kHz mono PCM
 const PLAYBACK_SAMPLE_RATE = 24000; // TTS returns 24kHz PCM
 const MAX_TRANSMIT_MS = 55_000;     // Manual ASR turns must stay under 60s.
 
@@ -60,7 +60,7 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
   return bytes.buffer;
 }
 
-// Downsample from srcRate to MIC_SAMPLE_RATE (16kHz)
+// Downsample from srcRate to MIC_SAMPLE_RATE (24kHz)
 function downsample(float32: Float32Array, srcRate: number): Float32Array {
   if (srcRate === MIC_SAMPLE_RATE) return float32;
   const ratio = srcRate / MIC_SAMPLE_RATE;
@@ -108,7 +108,7 @@ export function useRealtimeVoice() {
   });
 
   const wsRef = useRef<WebSocket | null>(null);
-  // Separate AudioContexts: one for mic capture (16kHz), one for playback (24kHz)
+  // Separate AudioContexts: one for mic capture (24kHz), one for playback (24kHz)
   const audioCtxRef = useRef<AudioContext | null>(null);       // mic capture
   const playbackCtxRef = useRef<AudioContext | null>(null);    // TTS playback
   const micStreamRef = useRef<MediaStream | null>(null);
@@ -322,11 +322,21 @@ export function useRealtimeVoice() {
 
       case 'grid.transmitted': {
         // Phase 3 / PILOT-04: ws-server extracted a <grid>NNNNNN</grid> tag
-        // from the LLM response stream. Validate 6 digits and write to the
-        // Zustand store; BombImpact subscribes and animates the impact.
+        // from the LLM response stream. Validate 6 digits and store it as the
+        // current fire-control target. This does not release weapons.
         const grid = (event as { grid?: string }).grid;
         if (grid && /^\d{6}$/.test(grid)) {
           useStore.getState().setTransmittedGrid(grid);
+        }
+        break;
+      }
+
+      case 'weapon.release': {
+        // The pilot agent called the server-side release tool after JTAC clearance.
+        // This is the only voice-pipeline event that should animate an impact.
+        const grid = (event as { grid?: string }).grid;
+        if (grid && /^\d{6}$/.test(grid)) {
+          useStore.getState().releaseWeapon(grid);
         }
         break;
       }
@@ -362,7 +372,7 @@ export function useRealtimeVoice() {
     try {
       micStreamRef.current = stream;
 
-      // Mic capture AudioContext at 16kHz for ASR
+      // Mic capture AudioContext at 24kHz for ASR
       const ctx = new AudioContext({ sampleRate: MIC_SAMPLE_RATE });
       await ctx.resume(); // Ensure not suspended on mobile
       audioCtxRef.current = ctx;
@@ -401,7 +411,7 @@ export function useRealtimeVoice() {
         // Reset retry counter and connecting lock on successful connection
         retriesRef.current = 0;
         connectingRef.current = false;
-        // Send session.start to initialize DashScope sessions on the server
+        // Send session.start to initialize voice resources on the server
         ws.send(JSON.stringify({ type: 'session.start' }));
 
         // Analytics: start session once per user-initiated connect (not per auto-reconnect).
@@ -422,8 +432,8 @@ export function useRealtimeVoice() {
             .catch(() => {});
         }
 
-        // Wait for server's session.ready before streaming audio — DashScope ASR setup
-        // is async on the server; sending audio.append before asrWs is ready triggers
+        // Wait for server's session.ready before streaming audio — ASR setup
+        // is async on the server; sending audio.append before readiness triggers
         // "Session not started" errors.
         sessionReadyRef.current = false;
         resetTransmitState();

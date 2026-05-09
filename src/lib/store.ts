@@ -8,12 +8,19 @@ export type ImpactResult = {
   timestamp: number;
 } | null;
 
+export type WeaponRelease = {
+  id: number;
+  grid: string;
+  timestamp: number;
+} | null;
+
 export type TurnLog = { role: 'user' | 'pilot'; text: string; ts: number };
 export type Debrief = { verdict: 'solid' | 'needs_work' | 'unsafe' | 'no_strike'; critique: string } | null;
 
 interface SceneState {
   reticleGrid: string;
   transmittedGrid: string | null;
+  weaponRelease: WeaponRelease;
   impactResult: ImpactResult;
   lasedRange: number | null;
   /** Monotonic timestamp of the last lase event; Reticle keys flash + pulse off it. */
@@ -22,6 +29,7 @@ interface SceneState {
   debrief: Debrief;
   setReticleGrid: (g: string) => void;
   setTransmittedGrid: (g: string | null) => void;
+  releaseWeapon: (g: string) => void;
   setImpactResult: (r: ImpactResult) => void;
   setLasedRange: (r: number | null) => void;
   setLasePulseAt: (t: number) => void;
@@ -34,6 +42,7 @@ interface SceneState {
 export const useStore = create<SceneState>((set) => ({
   reticleGrid: '500500',
   transmittedGrid: null,
+  weaponRelease: null,
   impactResult: null,
   lasedRange: null,
   lasePulseAt: 0,
@@ -41,11 +50,25 @@ export const useStore = create<SceneState>((set) => ({
   debrief: null,
   setReticleGrid: (g) => set({ reticleGrid: g }),
   setTransmittedGrid: (g) => set({ transmittedGrid: g }),
+  releaseWeapon: (g) => set((s) => ({
+    weaponRelease: {
+      id: (s.weaponRelease?.id ?? 0) + 1,
+      grid: g,
+      timestamp: Date.now(),
+    },
+  })),
   setImpactResult: (r) => set({ impactResult: r }),
   setLasedRange: (r) => set({ lasedRange: r }),
   setLasePulseAt: (t) => set({ lasePulseAt: t }),
   appendTurn: (t) => set((s) => ({ transcript: [...s.transcript, t] })),
   clearTranscript: () => set({ transcript: [] }),
   setDebrief: (d) => set({ debrief: d }),
-  endRun: () => set({ transmittedGrid: null, lasedRange: null, impactResult: null, transcript: [], debrief: null }),
+  endRun: () => set({
+    transmittedGrid: null,
+    weaponRelease: null,
+    lasedRange: null,
+    impactResult: null,
+    transcript: [],
+    debrief: null,
+  }),
 }));

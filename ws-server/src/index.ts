@@ -85,7 +85,7 @@ const server = Bun.serve<SessionData>({
 
         case 'audio.end':
           console.log(`[ws] session ${session.sessionId} audio.end received`);
-          session.handleAudioEnd();
+          void session.handleAudioEnd();
           break;
       }
     },

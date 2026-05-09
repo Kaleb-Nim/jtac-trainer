@@ -11,7 +11,7 @@ export interface TurnLog {
   latency: {
     asrMs: number | null;        // speech_started -> onTranscriptFinal
     llmTtftMs: number | null;    // streamLlmResponse call -> first onChunk
-    ttsTtfaMs: number | null;    // TTS WS open -> first onAudioDelta
+    ttsTtfaMs: number | null;    // voice output ready -> first onAudioDelta
     totalMs: number | null;      // turnStart -> onDone
   };
 }

@@ -1,16 +1,18 @@
 // bomb-smoke.ts — Phase 3 / PILOT-04..06 regression.
 //
 // Drives the BombImpact path WITHOUT the LLM/ws-server: uses the dev-mode
-// window.__setTransmittedGrid hook exposed by BombImpact. Verifies:
+// window.__setTransmittedGrid + window.__releaseWeapon hooks exposed by
+// BombImpact. Verifies:
 //
-//   Test 1 (Take A): grid 599699 → impact on TARGET_WORLD (≈ 0.5 m off).
+//   Test 1 (Take A): grid 599699 arms fire-control, then release → impact
+//                    on TARGET_WORLD (≈ 0.5 m off).
 //   Test 2 (Lase):   L key → lasedRange > 0 + 'RNG  NNNN m' line in HUD.
 //   Test 3 (Take B): grid 599799 → impact ≈ 20 m from FRIENDLIES_WORLD
 //                    (z=320 per SCENARIO; threshold widened from the plan
 //                    body's <5 to <25 to match the geometric reality of
 //                    the relocated friendlies position).
-//   Test 4 (Reset):  R key → transmittedGrid/lasedRange/impactResult all
-//                    null.
+//   Test 4 (Reset):  R key → transmittedGrid/weaponRelease/lasedRange/
+//                    impactResult all null.
 //
 // Mirrors scene-smoke.ts launch / permission / console-filter pattern.
 
@@ -18,6 +20,8 @@ import { chromium } from 'playwright';
 
 const errors: string[] = [];
 const benign = /ResizeObserver|PointerLockControls|WrongDocumentError|deprecated|GL Driver|ScriptProcessorNode|AudioWorkletNode/i;
+const APP_URL = process.env.APP_URL ?? 'http://localhost:3000';
+const APP_ORIGIN = new URL(APP_URL).origin;
 
 const browser = await chromium.launch({
   headless: true,
@@ -31,7 +35,7 @@ const browser = await chromium.launch({
 const context = await browser.newContext({
   permissions: ['microphone'],
 });
-await context.grantPermissions(['microphone'], { origin: 'http://localhost:3000' });
+await context.grantPermissions(['microphone'], { origin: APP_ORIGIN });
 
 const page = await context.newPage();
 
@@ -46,12 +50,17 @@ page.on('pageerror', (e) => {
 
 let exitCode = 1;
 try {
-  console.log('▸ navigating to http://localhost:3000');
-  await page.goto('http://localhost:3000', { waitUntil: 'domcontentloaded' });
+  console.log(`▸ navigating to ${APP_URL}`);
+  await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
 
   await page.waitForSelector('canvas', { timeout: 10000 });
   await page.waitForFunction(
     () => typeof (window as unknown as { __setTransmittedGrid?: unknown }).__setTransmittedGrid === 'function',
+    null,
+    { timeout: 8000 },
+  );
+  await page.waitForFunction(
+    () => typeof (window as unknown as { __releaseWeapon?: unknown }).__releaseWeapon === 'function',
     null,
     { timeout: 8000 },
   );
@@ -64,6 +73,12 @@ try {
 
   // ── Test 1: correct grid (Take A) ─────────────────────────────────────
   await page.evaluate(() => (window as unknown as { __setTransmittedGrid: (g: string) => void }).__setTransmittedGrid('599699'));
+  await page.waitForTimeout(1500);
+  const armedOnly = await page.evaluate(() => (window as unknown as { __getImpactResult: () => unknown }).__getImpactResult());
+  if (armedOnly !== null) {
+    throw new Error('Test1 expected no impact before release, got ' + JSON.stringify(armedOnly));
+  }
+  await page.evaluate(() => (window as unknown as { __releaseWeapon: (g: string) => void }).__releaseWeapon('599699'));
   await page.waitForTimeout(3500);
   const r1 = await page.evaluate(() => (window as unknown as { __getImpactResult: () => unknown }).__getImpactResult()) as {
     grid?: string; distanceToTarget?: number; distanceToFriendlies?: number;
@@ -89,6 +104,7 @@ try {
 
   // ── Test 3: misread (Take B) — must land near friendlies (z=320) ──────
   await page.evaluate(() => (window as unknown as { __setTransmittedGrid: (g: string) => void }).__setTransmittedGrid('599799'));
+  await page.evaluate(() => (window as unknown as { __releaseWeapon: (g: string) => void }).__releaseWeapon('599799'));
   await page.waitForTimeout(3500);
   const r3 = await page.evaluate(() => (window as unknown as { __getImpactResult: () => unknown }).__getImpactResult()) as {
     grid?: string; distanceToTarget?: number; distanceToFriendlies?: number;
@@ -104,9 +120,12 @@ try {
   // ── Test 4: reset ─────────────────────────────────────────────────────
   await page.keyboard.press('r');
   await page.waitForTimeout(250);
-  const after = await page.evaluate(() => (window as unknown as { __getStore: () => { transmittedGrid: unknown; lasedRange: unknown; impactResult: unknown } }).__getStore());
+  const after = await page.evaluate(() => (window as unknown as { __getStore: () => { transmittedGrid: unknown; weaponRelease: unknown; lasedRange: unknown; impactResult: unknown } }).__getStore());
   if (after.transmittedGrid !== null) {
     throw new Error('Test4 transmittedGrid not null: ' + JSON.stringify(after.transmittedGrid));
+  }
+  if (after.weaponRelease !== null) {
+    throw new Error('Test4 weaponRelease not null: ' + JSON.stringify(after.weaponRelease));
   }
   if (after.lasedRange !== null) {
     throw new Error('Test4 lasedRange not null: ' + JSON.stringify(after.lasedRange));
@@ -114,7 +133,7 @@ try {
   if (after.impactResult !== null) {
     throw new Error('Test4 impactResult not null: ' + JSON.stringify(after.impactResult));
   }
-  console.log('▸ Test4 OK: transmittedGrid + lasedRange + impactResult all null');
+  console.log('▸ Test4 OK: transmittedGrid + weaponRelease + lasedRange + impactResult all null');
 
   if (errors.length) {
     throw new Error('Console/page errors: ' + errors.slice(0, 5).join(' | '));

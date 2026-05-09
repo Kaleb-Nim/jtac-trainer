@@ -1,11 +1,10 @@
 import type { ServerWebSocket } from 'bun';
 import type { ServerMessage } from './types';
-import type { TtsHandle } from './dashscope/tts';
-import { commitAudioBuffer, createAsrSession, finishAsrSession, forwardAudioToAsr } from './dashscope/asr';
-import { streamLlmResponse } from './dashscope/llm';
-import { createTtsSession, appendTextToTts, finishTtsSession } from './dashscope/tts';
+import { transcribeAudioChunks } from './openai/asr';
+import { streamLlmResponse, type LlmToolCall } from './dashscope/llm';
+import type { TtsHandle } from './openai/tts';
+import { appendTextToTts, cancelTtsSession, createTtsSession, finishTtsSession } from './openai/tts';
 import { logTurn } from './logger';
-import type { TurnLog } from './logger';
 
 // Per-session data stored in Bun's WebSocket data slot
 export type SessionData = {
@@ -15,15 +14,31 @@ export type SessionData = {
 
 // Max conversation history entries (10 user + 10 assistant turns)
 const MAX_HISTORY_ENTRIES = 20;
+const MIN_TRANSCRIPT_WORDS = Number(process.env.MIN_TRANSCRIPT_WORDS) || 1;
+
+function normalizeSixDigitGrid(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const digits = value.replace(/\D/g, '');
+  return /^\d{6}$/.test(digits) ? digits : null;
+}
+
+function hasHotClearance(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+  return /\bclear(?:ed)?\s+hot\b/.test(normalized);
+}
 
 export class Session {
   readonly sessionId: string;
-  asrWs: WebSocket | null = null;
   ttsHandle: TtsHandle | null = null;
   isActive: boolean = true;
+  private asrReady = false;
+  private audioChunks: string[] = [];
 
   /** Conversation history for multi-turn context — capped at 20 entries (T-02-07) */
   conversationHistory: Array<{ role: string; content: string }> = [];
+
+  /** Latest line-6 grid the pilot read back. This arms fire-control but does not release. */
+  private fireControlGrid: string | null = null;
 
   /** AbortController for the current LLM+TTS pipeline — aborted on barge-in */
   private responseAbort: AbortController | null = null;
@@ -44,8 +59,8 @@ export class Session {
       this.responseAbort.abort();
       this.responseAbort = null;
     }
-    if (this.ttsHandle && this.ttsHandle.ws.readyState === WebSocket.OPEN) {
-      finishTtsSession(this.ttsHandle);
+    if (this.ttsHandle) {
+      cancelTtsSession(this.ttsHandle);
     }
     this.ttsHandle = null;
   }
@@ -55,6 +70,31 @@ export class Session {
     if (this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(msg));
     }
+  }
+
+  private captureTransmittedGrid(grid: string): void {
+    if (!/^\d{6}$/.test(grid)) return;
+    this.fireControlGrid = grid;
+    this.send({ type: 'grid.transmitted', grid });
+  }
+
+  private resolveDropBombGrid(toolCall: LlmToolCall): string | null {
+    let requestedGrid: string | null = null;
+
+    try {
+      const args = toolCall.arguments ? JSON.parse(toolCall.arguments) : {};
+      requestedGrid = normalizeSixDigitGrid((args as { mgrs?: unknown }).mgrs);
+    } catch {
+      requestedGrid = null;
+    }
+
+    if (this.fireControlGrid && requestedGrid && requestedGrid !== this.fireControlGrid) {
+      console.warn(
+        `[session] ${this.sessionId} drop_bomb requested ${requestedGrid}, using stored JTAC grid ${this.fireControlGrid}`,
+      );
+    }
+
+    return this.fireControlGrid ?? requestedGrid;
   }
 
   /**
@@ -101,7 +141,7 @@ export class Session {
     let pendingText = '';
     const GRID_RE = /<grid>(\d{6})<\/grid>/;
 
-    // Open TTS session — promise resolves once WS is open
+    // Open voice session — promise resolves once the Realtime session is updated.
     const ttsReadyPromise = createTtsSession({
       onAudioDelta: (delta) => {
         if (firstTtsAudio) {
@@ -127,6 +167,9 @@ export class Session {
         });
         session.send({ type: 'response.done' });
         session.ttsHandle = null;
+        if (session.responseAbort === abort) {
+          session.responseAbort = null;
+        }
       },
       onError: (message) => {
         session.send({ type: 'error', message });
@@ -136,7 +179,7 @@ export class Session {
     // Store handle once resolved (for barge-in cleanup)
     ttsReadyPromise.then((handle) => { session.ttsHandle = handle; });
 
-    // Start LLM streaming once TTS WebSocket is open
+    // Start LLM streaming once the Realtime voice session is ready.
     ttsReadyPromise.then((handle) => {
       ttsOpenTime = performance.now();
       // For greeting, use a special internal prompt; for normal, use transcript
@@ -174,7 +217,7 @@ export class Session {
             const before = pendingText.slice(0, match.index);
             const after = pendingText.slice(match.index + match[0].length);
             flushClean(before);
-            session.send({ type: 'grid.transmitted', grid });
+            session.captureTransmittedGrid(grid);
             pendingText = after;
           }
 
@@ -204,7 +247,7 @@ export class Session {
             const before = pendingText.slice(0, m.index);
             const after = pendingText.slice(m.index + m[0].length);
             flushClean(before);
-            session.send({ type: 'grid.transmitted', grid: g });
+            session.captureTransmittedGrid(g);
             pendingText = after;
           }
           flushClean(pendingText);
@@ -224,121 +267,89 @@ export class Session {
           session.send({ type: 'error', message });
         },
         abort.signal,
-        opts?.bargeInPrefix
+        opts?.bargeInPrefix,
+        (toolCall) => {
+          if (abort.signal.aborted || toolCall.name !== 'drop_bomb') return;
+          if (!hasHotClearance(userText)) {
+            console.warn(`[session] ${session.sessionId} drop_bomb ignored: no JTAC cleared-hot transcript`);
+            return;
+          }
+          const grid = session.resolveDropBombGrid(toolCall);
+          if (!grid) {
+            console.warn(`[session] ${session.sessionId} drop_bomb ignored: no valid JTAC grid`);
+            return;
+          }
+          if (!assistantResponse.trim()) {
+            flushClean('hog1, cleared hot. Bombs away.');
+          }
+          session.send({ type: 'weapon.release', grid });
+        }
       );
     }).catch((err) => {
       console.error('[session] TTS failed to open:', err);
+      if (session.responseAbort === abort) {
+        session.responseAbort = null;
+      }
     });
   }
 
-  /** Open one manual ASR session. Each push-to-talk turn finishes and rotates it. */
+  private handleTranscript(text: string, asrDurationMs: number | null): void {
+    const trimmed = text.trim();
+    const wordCount = trimmed ? trimmed.split(/\s+/).filter(Boolean).length : 0;
+    const shouldIgnore = wordCount < MIN_TRANSCRIPT_WORDS;
+
+    // Signal readiness after each completed push-to-talk turn. The frontend uses
+    // this to permit the next manual recording turn.
+    this.asrReady = true;
+    this.send({ type: 'session.ready' });
+
+    // ── Guard: skip empty, short, or filler utterances (D-05) ──
+    if (shouldIgnore) {
+      console.log(`[session] ignoring short transcript (${wordCount} words): "${text}"`);
+      this.send({ type: 'transcript.final', text: '' });
+      return;
+    }
+
+    this.send({ type: 'transcript.final', text });
+    console.log(`[session] ${this.sessionId} transcript: ${text}`);
+
+    // Log user turn (fire-and-forget)
+    logTurn({
+      ts: Date.now(),
+      sessionId: this.sessionId,
+      role: 'user',
+      text,
+      latency: {
+        asrMs: asrDurationMs,
+        llmTtftMs: null,
+        ttsTtfaMs: null,
+        totalMs: null,
+      },
+    });
+
+    // ── D-06: detect if we're interrupting an in-flight response ──
+    const wasResponding = this.responseAbort !== null;
+    const bargeInPrefix = wasResponding ? 'Oh sure \u2014 ' : undefined;
+
+    this.startResponse(text, { bargeInPrefix, asrDurationMs });
+  }
+
+  /** Prepare for manual push-to-talk turns. ASR itself runs after release. */
   private openAsrPipeline(opts?: { greet?: boolean }): void {
-    if (this.asrWs && this.asrWs.readyState === WebSocket.OPEN) {
-      // Already running — re-signal ready
+    if (this.asrReady) {
       this.send({ type: 'session.ready' });
       return;
     }
 
-    const session = this;
-    let asrSpeechStart: number | null = null;
-    let activeAsrWs: WebSocket | null = null;
-    let transcriptCompleted = false;
+    this.asrReady = true;
+    this.audioChunks = [];
+    this.send({ type: 'session.ready' });
+    console.log(`[session] ${this.sessionId} OpenAI ASR pipeline ready`);
 
-    const rotateAsr = () => {
-      session.manualAudioStart = null;
-      if (!transcriptCompleted) {
-        session.send({ type: 'transcript.final', text: '' });
-      }
-      transcriptCompleted = false;
-
-      if (activeAsrWs && session.asrWs === activeAsrWs) {
-        session.asrWs = null;
-      }
-      if (activeAsrWs?.readyState === WebSocket.OPEN) {
-        activeAsrWs.close();
-      }
-      activeAsrWs = null;
-
-      if (session.isActive) {
-        session.openAsrPipeline({ greet: false });
-      }
-    };
-
-    createAsrSession({
-      onSpeechStarted: () => {
-        asrSpeechStart = performance.now();
-      },
-      onTranscriptPartial: (text) => {
-        session.send({ type: 'transcript.partial', text });
-      },
-      onTranscriptFinal: (text) => {
-        transcriptCompleted = true;
-
-        // Compute ASR duration
-        const turnStart = asrSpeechStart ?? session.manualAudioStart;
-        const asrDurationMs = turnStart !== null
-          ? Math.round(performance.now() - turnStart)
-          : null;
-        asrSpeechStart = null; // reset for next turn
-        session.manualAudioStart = null;
-
-        session.send({ type: 'transcript.final', text });
-        console.log(`[session] ${session.sessionId} transcript: ${text}`);
-
-        // ── Guard: skip empty or filler utterances (D-05) ──
-        if (!text.trim()) return;
-        const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
-        if (wordCount < 3) {
-          console.log(`[session] ignoring short transcript (${wordCount} words): "${text}"`);
-          return;
-        }
-
-        // Log user turn (fire-and-forget)
-        logTurn({
-          ts: Date.now(),
-          sessionId: session.sessionId,
-          role: 'user',
-          text,
-          latency: {
-            asrMs: asrDurationMs,
-            llmTtftMs: null,
-            ttsTtfaMs: null,
-            totalMs: null,
-          },
-        });
-
-        // ── D-06: detect if we're interrupting an in-flight response ──
-        const wasResponding = session.responseAbort !== null;
-        const bargeInPrefix = wasResponding ? 'Oh sure \u2014 ' : undefined;
-
-        session.startResponse(text, { bargeInPrefix, asrDurationMs });
-      },
-      onError: (message) => {
-        session.send({ type: 'error', message });
-      },
-      onSessionFinished: () => {
-        rotateAsr();
-      },
-    }).then((asrWs) => {
-      activeAsrWs = asrWs;
-      if (!session.isActive) {
-        asrWs.close();
-        return;
-      }
-
-      session.asrWs = asrWs;
-      session.send({ type: 'session.ready' });
-      console.log(`[session] ${session.sessionId} ASR pipeline ready`);
-
-      // Proactive greeting — AI speaks first when visitor connects
-      if (opts?.greet ?? false) {
-        session.startResponse('', { isGreeting: true });
-      }
-    }).catch((err) => {
-      if (!session.isActive) return;
-      console.error(`[session] ${session.sessionId} ASR failed to open:`, err);
-      session.send({ type: 'error', message: 'ASR connection failed' });
-    });
+    // Proactive greeting — AI speaks first when visitor connects
+    if (opts?.greet ?? false) {
+      this.startResponse('', { isGreeting: true });
+    }
   }
 
   /** Start the ASR pipeline and signal session.ready to browser once ASR is open */
@@ -346,38 +357,60 @@ export class Session {
     this.openAsrPipeline({ greet: true });
   }
 
-  /** Forward browser audio to the ASR WebSocket */
+  /** Buffer browser audio for the current push-to-talk turn. */
   handleAudio(base64: string): void {
-    if (!this.asrWs) {
+    if (!this.asrReady) {
       this.send({ type: 'error', message: 'Session not started — send session.start first' });
       return;
     }
     this.manualAudioStart ??= performance.now();
-    forwardAudioToAsr(this.asrWs, base64);
+    this.audioChunks.push(base64);
   }
 
-  /** Commit the currently buffered push-to-talk turn to ASR. */
-  handleAudioEnd(): void {
-    if (!this.asrWs) {
+  /** Transcribe the currently buffered push-to-talk turn. */
+  async handleAudioEnd(): Promise<void> {
+    if (!this.asrReady) {
       this.send({ type: 'error', message: 'Session not started — send session.start first' });
       return;
     }
-    commitAudioBuffer(this.asrWs);
-    finishAsrSession(this.asrWs);
+
+    this.asrReady = false;
+    const chunks = this.audioChunks;
+    this.audioChunks = [];
+    const turnStart = this.manualAudioStart;
+    this.manualAudioStart = null;
+
+    if (chunks.length === 0) {
+      this.handleTranscript('', null);
+      return;
+    }
+
+    try {
+      const text = await transcribeAudioChunks(chunks);
+      if (!this.isActive) return;
+      const asrDurationMs = turnStart !== null ? Math.round(performance.now() - turnStart) : null;
+      this.handleTranscript(text, asrDurationMs);
+    } catch (err) {
+      if (!this.isActive) return;
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[session] ${this.sessionId} ASR transcription failed:`, err);
+      this.asrReady = true;
+      this.send({ type: 'session.ready' });
+      this.send({ type: 'error', message });
+    }
   }
 
-  /** Close all DashScope WebSockets and mark session inactive */
+  /** Close all provider resources and mark session inactive. */
   cleanup(): void {
     this.isActive = false;
 
     this.cancelCurrentResponse();
 
-    if (this.asrWs && this.asrWs.readyState === WebSocket.OPEN) {
-      this.asrWs.close();
-    }
-    this.asrWs = null;
+    this.asrReady = false;
+    this.audioChunks = [];
 
     this.conversationHistory = [];
+    this.fireControlGrid = null;
 
     console.log(`[session] ${this.sessionId} cleaned up`);
   }
